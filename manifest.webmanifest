@@ -1,0 +1,24 @@
+{
+  "name": "ImmoCRM Pro — Scaglia · Piacenza",
+  "short_name": "ImmoCRM",
+  "description": "Gestionale immobiliare personale: contatti, immobili, incroci, agenda e provvigioni su PC, tablet e smartphone.",
+  "id": "immocrm-pro",
+  "lang": "it",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0f1117",
+  "theme_color": "#0f1117",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Regia del giorno", "url": "./index.html#regia", "description": "Le chiamate di oggi" },
+    { "name": "Agenda", "url": "./index.html#calendario", "description": "Appuntamenti" }
+  ]
+}

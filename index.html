@@ -2,29 +2,43 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover,maximum-scale=5.0">
 <meta name="theme-color" content="#0f1117">
-<meta name="robots" content="noindex,nofollow">
+<meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
-<title>ImmoCRM Pro v10.1 — Scaglia · Piacenza</title>
+<meta name="description" content="ImmoCRM Pro — gestionale immobiliare personale di Scaglia Davide, Piacenza.">
+<meta name="referrer" content="no-referrer">
+<!-- PWA: installabile su PC, tablet e smartphone -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ImmoCRM">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+<link rel="preconnect" href="https://api.github.com" crossorigin>
+<title>ImmoCRM Pro v10.2 — Scaglia · Piacenza</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
-<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.1 · Real Estate Operating System</div></div>
+<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.2 · Real Estate Operating System</div></div>
 <div id="login-form">
-<div class="login-field"><label>Password</label><input type="password" id="login-pass" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
-<button class="login-btn" onclick="doLogin()">🔐 Accedi</button>
+<div class="login-field"><label>Password</label><input type="password" id="login-pass" inputmode="text" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
+<button class="login-btn" id="login-btn" onclick="doLogin()">🔐 Accedi</button>
 <div class="login-err" id="login-err"></div>
-<div class="login-hint">💡 <b>Primo accesso:</b> password <code>successo</code>. Poi cambiala in Impostazioni → Sicurezza.</div>
+<div class="login-hint" id="lock-note" style="display:none">🔒 Sessione bloccata per inattività: inserisci la password per riprendere esattamente da dove eri.</div>
+<div class="login-hint">💡 <b>Primo accesso:</b> password <code>successo</code>. Poi cambiala subito (te lo chiedo io al primo login).</div>
+<div class="login-hint" style="margin-top:8px">📱 <b>Multi‑dispositivo:</b> i dati si salvano su questo dispositivo e, se attivi la sincronizzazione in <b>Impostazioni</b>, anche sul tuo cloud privato — così PC, tablet e telefono hanno gli stessi dati e gli stessi incroci.</div>
 </div>
 <div id="setup-form" style="display:none">
 <div class="setup-banner">⚙️ <strong>Primo accesso</strong> — crea le credenziali</div>
 <div class="login-field"><label>Il tuo nome</label><input type="text" id="setup-nome" value="Scaglia Davide"></div>
-<div class="login-field"><label>Password (min 4)</label><input type="password" id="setup-pass"></div>
-<div class="login-field"><label>Conferma password</label><input type="password" id="setup-pass2"></div>
+<div class="login-field"><label>Password (min 6)</label><input type="password" id="setup-pass" autocomplete="new-password"></div>
+<div class="login-field"><label>Conferma password</label><input type="password" id="setup-pass2" autocomplete="new-password"></div>
 <div class="login-field"><label>Domanda di sicurezza</label><input type="text" id="setup-question"></div>
 <div class="login-field"><label>Risposta segreta</label><input type="text" id="setup-answer"></div>
 <button class="login-btn" onclick="doSetup()">✅ Crea Account</button>
@@ -36,15 +50,18 @@
 <aside id="sidebar">
 <div class="sidebar-logo"><div class="logo-text"><h1>ImmoCRM</h1><span>Scaglia · Piacenza</span></div><button class="sidebar-toggle" onclick="toggleSidebar()">◀</button></div>
 <nav id="nav"></nav>
-<div class="sidebar-user"><div class="avatar" id="uav">SD</div><div id="user-info"><div id="uname" class="user-name">Scaglia Davide</div><div id="urole" class="user-role">Agente Immobiliare</div></div><button id="logout-btn" onclick="doLogout()">⏻</button></div>
+<div class="sidebar-user"><div class="avatar" id="uav">SD</div><div id="user-info"><div id="uname" class="user-name">Scaglia Davide</div><div id="urole" class="user-role">Agente Immobiliare</div></div><button id="logout-btn" onclick="doLogout()" title="Esci">⏻</button></div>
 </aside>
+<div id="sidebar-backdrop" onclick="document.getElementById('sidebar').classList.remove('mobile-open')"></div>
 <div id="main">
-<header id="topbar"><button id="hamburger" class="btn-ghost" onclick="document.getElementById('sidebar').classList.toggle('mobile-open')">☰</button><h2 id="page-title">Regia</h2><span id="topbar-date" class="topbar-meta"></span><span id="save-indicator" class="topbar-save">✓</span><button class="btn-ghost" onclick="openGlobalSearch()">🔍</button><button class="btn-gold" onclick="topAdd()">+ Aggiungi</button></header>
+<header id="topbar"><button id="hamburger" class="btn-ghost" aria-label="Menu" onclick="document.getElementById('sidebar').classList.toggle('mobile-open')">☰</button><h2 id="page-title">Regia</h2><span id="topbar-date" class="topbar-meta"></span><span id="save-indicator" class="topbar-save">✓</span><button id="sync-pill" class="sync-pill local" onclick="go('impostazioni')" title="Stato sincronizzazione"><span class="sp-ico">💾</span><span class="sp-txt">solo locale</span></button><button class="btn-ghost" aria-label="Cerca" onclick="openGlobalSearch()">🔍</button><button class="btn-gold" onclick="topAdd()">+ Aggiungi</button></header>
 <div id="content" class="fade-up"></div>
 </div>
 </div>
 <div id="toast-container"></div>
+<div id="offline-banner" style="display:none">📴 Sei offline: lavori lo stesso, i dati restano salvati e si sincronizzano appena torna la linea.</div>
 <div id="search-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGlobalSearch()"><div class="search-modal" onclick="event.stopPropagation()"><div class="search-head"><input id="search-input" placeholder="Cerca…" oninput="runGlobalSearch(this.value)"><button onclick="closeGlobalSearch()">ESC</button></div><div id="search-results"></div></div></div>
+<script src="sync.js" defer></script>
 <script src="app.js" defer></script>
 </body>
 </html>

@@ -1,23 +1,44 @@
-NON copiare e incollare. Il file è troppo grande per l'editor di GitHub.
+ImmoCRM Pro v10.2 — CARICAMENTO SU GITHUB PAGES
+================================================
 
-1. Scarica immocrm-per-github.zip e scompattalo.
-   Trovi 4 file: index.html, style.css, app.js, .nojekyll
+NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
 
-2. Apri https://github.com/davidescaglia1968/immocrm
+1. Apri https://github.com/davidescaglia1968/immocrm
 
-3. Clicca "Add file" → "Upload files"
+2. Clicca "Add file" → "Upload files"
 
-4. Trascina NELLO STESSO CARICAMENTO questi 4 file
-   (sovrascrivono quelli vecchi)
+3. Trascina NELLO STESSO CARICAMENTO TUTTI questi file e cartelle
+   (sovrascrivono quelli vecchi):
 
-5. Clicca "Commit changes"
+     index.html
+     style.css
+     app.js
+     sync.js               ← NUOVO: motore di sincronizzazione
+     sw.js                 ← NUOVO: funziona anche offline
+     manifest.webmanifest  ← NUOVO: installabile come app
+     .nojekyll
+     icons/  (cartella con: icon-192.png, icon-512.png,
+              apple-touch-icon.png, maskable-512.png)
 
-6. Aspetta 1-2 minuti, poi apri:
-   https://davidescaglia1968.github.io/immocrm/
-   Se vedi la versione vecchia: Ctrl+F5
+4. Clicca "Commit changes"
 
-Password: successo
+5. Aspetta 1-2 minuti, poi apri:  https://davidescaglia1968.github.io/immocrm/
+   Se vedi la versione vecchia: Ctrl+F5 (o svuota la cache).
 
-NON aprire index.html dalla pagina del codice su github.com
-NON usare raw.githubusercontent.com
-NON incollare il testo nell'editor.
+----------------------------------------------------------------
+
+PRIMO ACCESSO
+  Password iniziale: successo  → al primo login ti chiedo di cambiarla.
+
+USARLO SU PC, TABLET E SMARTPHONE CON GLI STESSI DATI
+  1. Entra su un dispositivo e vai in Impostazioni → "Sincronizzazione".
+  2. Crea un token GitHub con SOLO il permesso "gist"
+     (link guidato dentro l'app).
+  3. Incolla il token e premi "Collega e sincronizza": creo un archivio
+     PRIVATO e cifrato nel tuo GitHub.
+  4. Sugli altri dispositivi: stessa pagina, stessa password, stesso token
+     (e l'ID archivio che trovi in Impostazioni) → "Collega e sincronizza".
+  Da quel momento contatti, immobili, incroci e agenda sono identici ovunque.
+
+I dati restano comunque salvati anche in locale su ogni dispositivo
+(backup automatico ogni 20 minuti, ripristinabile da Impostazioni).

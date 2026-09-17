@@ -1,0 +1,25 @@
+{
+  "name": "immocrm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "node tests/run.cjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidescaglia1968/immocrm.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/davidescaglia1968/immocrm/issues"
+  },
+  "homepage": "https://github.com/davidescaglia1968/immocrm#readme",
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.1.0"
+  },
+  "private": true
+}
