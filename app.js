@@ -94,7 +94,7 @@ function greeting(){const h=new Date().getHours();return h<6?'Buonanotte':h<12?'
 function nomeAgente(){return(DB.settings||{}).agente||'Agente'}
 function getAuth(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'null')}catch(e){return null}}
 function saveAuth(a){try{localStorage.setItem(AUTH_KEY,JSON.stringify(a))}catch(e){console.warn('saveAuth',e)}}
-function isSessionValid(a){return a&&a.ts&&(Date.now()-a.ts)<SESSION_HOURS*3600*1000}
+function isSessionValid(a){const ore=(a&&a.sessionHours)||SESSION_HOURS;return !!a&&!!a.ts&&(Date.now()-a.ts)<ore*3600*1000}
 function initDB(){
 ['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture'].forEach(k=>{if(!DB[k])DB[k]=[]});
 if(!DB.obiettivi)DB.obiettivi={incarichiSettimana:1,incarichiMese:4,chiamateGiorno:10};
@@ -102,28 +102,153 @@ if(!DB.regia)DB.regia={data:today(),fatte:[],saltate:[]};
 if(!DB.actionPlans)DB.actionPlans=[];
 if(!DB.mercato||!DB.mercato.trimestri)DB.mercato=JSON.parse(JSON.stringify(MERCATO_DEFAULT));
 if(!DB.zoneOMI)DB.zoneOMI=[{id:'z1',comune:'Piacenza',zona:'Centro storico',mqMin:1900,mqMax:2900,tempoMedioGiorni:90,scontoMedioPct:6}];
-if(!DB.settings)DB.settings={agente:'Scaglia Davide',agenziaNome:'Immobiliare Scaglia',telefono:'',email:'',provvigione:3,waTemplates:[{nome:'Ricontatto',testo:'Ciao {nome}, sono {agente}. Ci sono novità che potrebbero interessarti. Quando ti chiamo?'},{nome:'Nuovo immobile',testo:'Ciao {nome}, è arrivato un immobile perfetto per te! Organizziamo una visita? — {agente}'}],_localPass:hashSimple('successo')};
-if(!DB.settings._localPass)DB.settings._localPass=hashSimple('successo');
+if(!DB.settings)DB.settings={agente:'Scaglia Davide',agenziaNome:'Immobiliare Scaglia',telefono:'',email:'',provvigione:3,waTemplates:[{nome:'Ricontatto',testo:'Ciao {nome}, sono {agente}. Ci sono novità che potrebbero interessarti. Quando ti chiamo?'},{nome:'Nuovo immobile',testo:'Ciao {nome}, è arrivato un immobile perfetto per te! Organizziamo una visita? — {agente}'}]};
+if(!DB.settings._localPass&&!DB.settings._passV2)DB.settings._localPass=hashSimple('successo');
 if(DB.settings){if(!DB.settings.waTemplates)DB.settings.waTemplates=[];if(!DB.settings.waTemplates.some(x=>x.nome==='Presentazione'))DB.settings.waTemplates.push({nome:'Presentazione',testo:'Buongiorno {nome}, sono {agente} di {agenzia}. Le invio la mia presentazione. Quando possiamo sentirci?'});}
 (DB.clienti||[]).forEach(c=>{if(!c.dataPrimoContatto)c.dataPrimoContatto=c.dataCreazione||c.ultimoContatto||'';if(c.presentazioneInviata===true)c.presentazioneInviata='si';if(!c.via&&c.indirizzo){const sp=splitIndirizzo(c.indirizzo);c.via=c.via||sp.via;c.civico=c.civico||sp.civico}});
 }
-function save(){try{DB._ts=Date.now();localStorage.setItem(KEY,JSON.stringify(DB));const i=document.getElementById('save-indicator');if(i){i.classList.add('show');clearTimeout(window._sT);window._sT=setTimeout(()=>i.classList.remove('show'),2000)}}catch(e){showToast('⚠️ Spazio esaurito: esporta un backup','error')}}
-function loadDB(){try{const r=localStorage.getItem(KEY);if(r)DB=JSON.parse(r)}catch(e){DB={}}initDB()}
+/* ---------- PERSISTENZA (localStorage + IndexedDB + cloud) ---------- */
+let BOOT_DB=null,_dbReady=false,_bootstrapped=false,_lockTimer=null,_passPromptOpen=false;
+function save(){try{
+DB._ts=Date.now();
+if(window.ImmoSync)ImmoSync.track(DB);
+localStorage.setItem(KEY,JSON.stringify(DB));
+if(window.ImmoSync)ImmoSync.mirror(DB);
+const i=document.getElementById('save-indicator');if(i){i.classList.add('show');clearTimeout(window._sT);window._sT=setTimeout(()=>i.classList.remove('show'),2000)}
+if(window.ImmoSync)ImmoSync.onLocalChange();
+}catch(e){showToast('⚠️ Spazio esaurito: esporta un backup','error')}}
+function loadDB(){if(_dbReady){initDB();return}
+if(window.ImmoSync&&BOOT_DB){DB=BOOT_DB;BOOT_DB=null}
+else{try{const r=localStorage.getItem(KEY);if(r)DB=JSON.parse(r)}catch(e){DB={}}}
+_dbReady=true;initDB()}
+function applicaDbRemoto(d){if(!d||typeof d!=='object')return;DB=d;window.DB=DB;_dbReady=true;
+if(window.ImmoSync){ImmoSync.adopt(DB);try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}ImmoSync.mirror(DB)}
+initDB();
+if(appAttiva()){render();updateBadges()}
+showToast('☁️ Dati aggiornati dal cloud','info',2200)}
+function appAttiva(){const a=document.getElementById('app-shell');return !!a&&a.style.display!=='none'}
+/* ---------- AUTENTICAZIONE (PBKDF2 + blocco tentativi + auto-lock) ---------- */
+const PBK_ITER=210000;
+function _b64e(buf){let s='';const b=new Uint8Array(buf);for(let i=0;i<b.length;i++)s+=String.fromCharCode(b[i]);return btoa(s)}
+function _b64d(str){const bin=atob(str);const out=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i);return out}
+function _subtle(){const c=window.crypto;if(!c)return null;return c.subtle||(c.webcrypto&&c.webcrypto.subtle)||null}
+function nuovoSale(){const a=new Uint8Array(16);if(window.crypto&&window.crypto.getRandomValues)window.crypto.getRandomValues(a);else for(let i=0;i<16;i++)a[i]=Math.floor(Math.random()*256);return _b64e(a)}
+async function pbkdf2(pass,salt,iter){const su=_subtle();if(!su||!pass)return null;
+const base=await su.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
+const bits=await su.deriveBits({name:'PBKDF2',salt:_b64d(salt),iterations:iter||PBK_ITER,hash:'SHA-256'},base,256);
+return _b64e(bits)}
+async function aggiornaHashPassword(pass){const a=getAuth()||{};const salt=nuovoSale();const h=await pbkdf2(pass,salt,PBK_ITER);if(!h)return false;
+a.pass={salt:salt,iter:PBK_ITER,hash:h};delete a.localPass;saveAuth(a);
+if(DB.settings){delete DB.settings._localPass;DB.settings._passV2=true}
+return true}
+async function verificaPassword(pass){const a=getAuth()||{};
+if(a.pass&&a.pass.hash&&a.pass.salt){const h=await pbkdf2(pass,a.pass.salt,a.pass.iter);return !!h&&h===a.pass.hash}
+const lp=a.localPass||(DB.settings||{})._localPass;
+if(lp&&hashSimple(pass)===lp){await aggiornaHashPassword(pass);return true}
+return false}
+function loginBloccato(){const a=getAuth()||{};return !!(a.fails&&a.fails.until&&a.fails.until>Date.now())}
+function registraFallimento(){const a=getAuth()||{};const n=((a.fails&&a.fails.n)||0)+1;const minuti=Math.min(15,Math.pow(2,n-1)*0.5);a.fails={n:n,until:n>=3?Date.now()+minuti*60000:0};saveAuth(a);return n}
+function azzeraFallimenti(){const a=getAuth()||{};if(a.fails){delete a.fails;saveAuth(a)}}
+function minutiBlocco(){const a=getAuth()||{};if(!loginBloccato())return 0;return Math.max(1,Math.ceil((a.fails.until-Date.now())/60000))}
+async function sbloccoCloud(pass){try{if(window.ImmoSync)await ImmoSync.unlockWithPassword(pass,{keepSalt:false});return true}catch(e){console.warn('unlock',e);return false}}
 function showLogin(){document.getElementById('login-form').style.display='block';document.getElementById('setup-form').style.display='none'}
 function showSetup(){document.getElementById('login-form').style.display='none';document.getElementById('setup-form').style.display='block'}
-function doLogin(){const p=document.getElementById('login-pass').value.trim();const e=document.getElementById('login-err');e.textContent='';if(!p){e.textContent='Inserisci la password';return}
-const a=getAuth()||{};const lp=a.localPass||DB.settings._localPass;
-if(lp&&hashSimple(p)===lp){a.loggedIn=true;a.nome=a.nome||DB.settings.agente;a.ts=Date.now();saveAuth(a);entraApp()}else{e.textContent='❌ Password errata';document.getElementById('login-pass').value=''}}
-function doSetup(){const n=document.getElementById('setup-nome').value.trim(),p1=document.getElementById('setup-pass').value,p2=document.getElementById('setup-pass2').value,q=document.getElementById('setup-question').value.trim(),an=document.getElementById('setup-answer').value.trim(),e=document.getElementById('setup-err');e.textContent='';
-if(!n){e.textContent='Nome obbligatorio';return}if(p1.length<4){e.textContent='Password min 4';return}if(p1!==p2){e.textContent='Non coincidono';return}if(!q||!an){e.textContent='Domanda e risposta obbligatorie';return}
-const a={loggedIn:true,nome:n,localPass:hashSimple(p1),question:q,answer:hashSimple(an.toLowerCase()),ts:Date.now()};saveAuth(a);DB.settings._localPass=hashSimple(p1);DB.settings.agente=n;save();entraApp();showToast('Benvenuto '+n+' 👋')}
-function doLogout(){if(!confirm('Uscire?'))return;try{localStorage.removeItem(AUTH_KEY)}catch(e){}location.reload()}
+async function doLogin(){const inp=document.getElementById('login-pass');const p=(inp&&inp.value||'').trim();const e=document.getElementById('login-err');e.textContent='';
+const btn=document.getElementById('login-btn');
+if(loginBloccato()){e.textContent='⏳ Troppi tentativi errati: riprova fra '+minutiBlocco()+' min';return}
+if(!p){e.textContent='Inserisci la password';return}
+if(btn){btn.disabled=true;btn.textContent='Verifico…'}
+let ok=false;try{ok=await verificaPassword(p)}catch(err){ok=false}
+if(btn){btn.disabled=false;btn.textContent='🔐 Accedi'}
+if(!ok){const n=registraFallimento();e.textContent='❌ Password errata'+(n>=3?' — accesso sospeso per '+minutiBlocco()+' min':'');inp.value='';return}
+azzeraFallimenti();
+const a=getAuth()||{};a.loggedIn=true;a.nome=a.nome||(DB.settings||{}).agente||'Utente';a.ts=Date.now();saveAuth(a);
+await sbloccoCloud(p);
+entraApp();
+const n=document.getElementById('lock-note');if(n)n.style.display='none';
+if(p==='successo')chiediCambioPassword(true)}
+async function doSetup(){const n=document.getElementById('setup-nome').value.trim(),p1=document.getElementById('setup-pass').value,p2=document.getElementById('setup-pass2').value,q=document.getElementById('setup-question').value.trim(),an=document.getElementById('setup-answer').value.trim(),e=document.getElementById('setup-err');e.textContent='';
+if(!n){e.textContent='Nome obbligatorio';return}if(p1.length<6){e.textContent='Password min 6 caratteri';return}if(p1!==p2){e.textContent='Non coincidono';return}if(!q||!an){e.textContent='Domanda e risposta obbligatorie';return}
+const salt=nuovoSale();const h=await pbkdf2(p1,salt,PBK_ITER);
+const a={loggedIn:true,nome:n,question:q,answer:hashSimple(an.toLowerCase()),ts:Date.now()};
+if(h)a.pass={salt:salt,iter:PBK_ITER,hash:h};else a.localPass=hashSimple(p1);
+saveAuth(a);
+if(DB.settings){DB.settings.agente=n;if(h){delete DB.settings._localPass;DB.settings._passV2=true}else DB.settings._localPass=hashSimple(p1)}
+save();await sbloccoCloud(p1);entraApp();showToast('Benvenuto '+n+' 👋')}
+function chiediCambioPassword(forza){if(document.getElementById('chg-pass-modal'))return;
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="chg-pass-modal"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>🔐 Cambia la password predefinita</h2>
+<div class="alert gold" style="margin-top:0">Stai ancora usando la password <code>successo</code>. Chiunque apra questa pagina potrebbe indovinarla: scegli una password tua (minimo 6 caratteri).</div>
+<div class="form-group"><label class="form-label">Nuova password</label><input type="password" id="cp-1" class="inp" autocomplete="new-password"></div>
+<div class="form-group"><label class="form-label">Conferma</label><input type="password" id="cp-2" class="inp" autocomplete="new-password"></div>
+<div class="login-err" id="cp-err"></div>
+<div class="modal-footer">${forza?'':'<button class="btn btn-ghost" onclick="chiudiCambioPassword()">Più tardi</button>'}<button class="btn btn-primary" onclick="salvaCambioPassword()">Salva password</button></div></div></div>`);
+setTimeout(()=>{const el=document.getElementById('cp-1');if(el)el.focus()},80)}
+function chiudiCambioPassword(){const m=document.getElementById('chg-pass-modal');if(m)m.remove()}
+async function salvaCambioPassword(){const p1=document.getElementById('cp-1').value,p2=document.getElementById('cp-2').value,e=document.getElementById('cp-err');
+if(p1.length<6){e.textContent='Minimo 6 caratteri';return}if(p1!==p2){e.textContent='Non coincidono';return}
+if(!(await aggiornaHashPassword(p1))){e.textContent='Il browser non supporta la cifratura: serve HTTPS';return}
+const a=getAuth()||{};a.ts=Date.now();saveAuth(a);save();await sbloccoCloud(p1);chiudiCambioPassword();
+if(window.ImmoSync)ImmoSync.syncNow('password');
+showToast('🔑 Password aggiornata')}
+function doLogout(){if(!confirm('Uscire? I dati restano salvati su questo dispositivo e sul cloud.'))return;
+try{localStorage.removeItem(AUTH_KEY)}catch(e){}
+if(window.ImmoSync){try{ImmoSync.flushNow()}catch(e){}ImmoSync.lockMaster()}
+location.reload()}
+function armaLock(){if(_lockTimer)clearTimeout(_lockTimer);const a=getAuth()||{};const min=a.lockMin===undefined?15:parseInt(a.lockMin,10);if(!min||min<0)return;_lockTimer=setTimeout(bloccaApp,min*60000)}
+function bloccaApp(){if(!appAttiva())return;
+try{if(window.ImmoSync)ImmoSync.flushNow()}catch(e){}
+document.getElementById('app-shell').style.display='none';
+const ls=document.getElementById('login-screen');if(ls)ls.style.display='flex';
+showLogin();const n=document.getElementById('lock-note');if(n)n.style.display='block';
+const i=document.getElementById('login-pass');if(i){i.value='';setTimeout(()=>i.focus(),60)}}
 function entraApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-shell').style.display='flex';
 const a=getAuth();if(a&&a.nome){document.getElementById('uname').textContent=a.nome;document.getElementById('uav').textContent=a.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 loadDB();document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
-buildNav();render();updateBadges();injectMobile();
-setInterval(updateBadges,60000);setInterval(()=>{try{save()}catch(e){}},60000);
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeGlobalSearch()})}
+buildNav();render();updateBadges();injectMobile();renderSyncPill();armaLock();
+if(_bootstrapped)return;_bootstrapped=true;
+setInterval(updateBadges,60000);
+setInterval(()=>{try{if(window.ImmoSync)ImmoSync.mirror(DB)}catch(e){}},60000);
+['pointerdown','keydown','touchstart','wheel'].forEach(ev=>document.addEventListener(ev,()=>{if(appAttiva())armaLock()},{passive:true}));
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeGlobalSearch()});
+window.addEventListener('online',()=>{renderSyncPill();if(window.ImmoSync)ImmoSync.syncNow('online')});
+window.addEventListener('offline',()=>renderSyncPill());
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(window.ImmoSync)ImmoSync.flushNow()}else if(appAttiva()&&window.ImmoSync)ImmoSync.pull()});
+window.addEventListener('pagehide',()=>{try{if(window.ImmoSync)ImmoSync.flushNow()}catch(e){}});
+if(window.ImmoSync)ImmoSync.start({getDb:()=>DB,applyDb:applicaDbRemoto,onStatus:renderSyncPill,unlock:chiediPasswordCloud})}
+function renderSyncPill(st){const el=document.getElementById('sync-pill');if(!el)return;
+const s=st||(window.ImmoSync?ImmoSync.status():{state:'off',mode:'off'});
+const off=(typeof navigator!=='undefined'&&navigator.onLine===false);
+let cls='ok',ico='☁️',txt='';
+if(off){cls='off';ico='📴';txt='offline'}
+else if(s.mode==='off'){cls='local';ico='💾';txt='solo locale'}
+else if(s.state==='syncing'){cls='busy';ico='⏳';txt='sync…'}
+else if(s.state==='error'){cls='err';ico='⚠️';txt='errore'}
+else{txt=s.lastSync?new Date(s.lastSync).toLocaleTimeString('it-IT',{hour:'2-digit',minute:'2-digit'}):'pronto'}
+el.className='sync-pill '+cls;
+el.innerHTML='<span class="sp-ico">'+ico+'</span><span class="sp-txt">'+txt+'</span>';
+const ob=document.getElementById('offline-banner');
+if(ob)ob.style.display=(off&&appAttiva())?'block':'none';
+el.title=(s.lastError?('⚠️ '+s.lastError+'\n'):'')+'Ultima sincronizzazione: '+(s.lastSync?new Date(s.lastSync).toLocaleString('it-IT'):'mai')}
+/* prompt password: sblocca l'archivio cloud cifrato oppure ricava la chiave locale */
+function chiediPasswordCloud(env){return new Promise(res=>{if(_passPromptOpen){res(false);return}_passPromptOpen=true;
+window._clEnv=env||null;window._clRes=res;
+const testo=env?'I dati nel cloud sono cifrati con la password del dispositivo che li ha caricati. Inseriscila per scaricarli anche qui.':'Inserisci la tua password: serve per cifrare i dati prima di mandarli nel cloud.';
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="cl-modal" onclick="chiudiPromptCloud(false)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>🔐 Password</h2>
+<p class="text-muted text-sm" style="margin-bottom:12px">${testo}</p>
+<div class="form-group"><label class="form-label">Password</label><input type="password" id="cl-pass" class="inp" autocomplete="current-password" onkeydown="if(event.key==='Enter')confermaPromptCloud()"></div>
+<div class="login-err" id="cl-err"></div>
+<div class="modal-footer"><button class="btn btn-ghost" onclick="chiudiPromptCloud(false)">Annulla</button><button class="btn btn-primary" onclick="confermaPromptCloud()">Conferma</button></div></div></div>`);
+setTimeout(()=>{const el=document.getElementById('cl-pass');if(el)el.focus()},80)})}
+async function confermaPromptCloud(){const el=document.getElementById('cl-pass');const p=el?el.value:'';const e=document.getElementById('cl-err');
+if(!p){if(e)e.textContent='Inserisci la password';return}
+if(!window.ImmoSync){chiudiPromptCloud(false);return}
+let ok=false;const eraRemoto=!!window._clEnv;
+try{ok=eraRemoto?await ImmoSync.rekeyFromEnvelope(p,window._clEnv):(await ImmoSync.unlockWithPassword(p),true)}catch(err){ok=false}
+if(!ok){if(e)e.textContent=eraRemoto?'Password non valida per questo archivio':'Operazione non riuscita';return}
+chiudiPromptCloud(true);showToast('🔐 Fatto');renderSyncPill();
+if(eraRemoto)ImmoSync.pull().then(()=>{render();renderSyncPill()})}
+function chiudiPromptCloud(ok){const m=document.getElementById('cl-modal');if(m)m.remove();_passPromptOpen=false;
+const r=window._clRes;window._clRes=null;window._clEnv=null;if(r)r(!!ok)}
 function checkLoginRequired(){loadDB();const a=getAuth();if(a&&a.loggedIn&&isSessionValid(a))entraApp();else showLogin()}
 function showToast(m,t='success',d=3000){const el=document.createElement('div');el.className='toast toast-'+t;el.textContent=m;document.getElementById('toast-container').appendChild(el);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300)},d)}
 const RENDERERS={};
@@ -751,7 +876,7 @@ c.innerHTML=`<div class="stack"><div class="grid4">
 <div class="stat-card"><div class="stat-label">Convertiti</div><div class="stat-value">${(DB.chiamate||[]).filter(x=>x.stato==='convertito').length}</div></div>
 <div class="stat-card"><div class="stat-label">Open House</div><div class="stat-value">${(DB.openhouses||[]).length}</div></div>
 <div class="stat-card"><div class="stat-label">Lead</div><div class="stat-value">${(DB.leads||[]).length}</div></div></div></div>`}
-function renderImpostazioni(c){const s=DB.settings||{};
+function renderImpostazioni(c){const s=DB.settings||{};setTimeout(caricaStorico,0);
 c.innerHTML=`<div class="stack">
 <div class="card"><div class="card-title" style="margin-bottom:10px">👤 Profilo</div><div class="form-row-3">
 <div class="form-group"><label class="form-label">Nome agente</label><input class="inp" value="${esc(s.agente||'')}" onchange="DB.settings.agente=this.value;save()"></div>
@@ -761,18 +886,139 @@ c.innerHTML=`<div class="stack">
 <div class="form-group"><label class="form-label">Password attuale</label><input type="password" id="sec-cur" class="inp"></div>
 <div class="form-group"><label class="form-label">Nuova</label><input type="password" id="sec-n1" class="inp"></div>
 <div class="form-group"><label class="form-label">Conferma</label><input type="password" id="sec-n2" class="inp"></div></div>
-<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="cambiaPassword()">🔑 Cambia password</button></div>
+<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="cambiaPassword()">🔑 Cambia password</button>
+<div class="form-row-3" style="margin-top:14px">
+<div class="form-group"><label class="form-label">Blocco automatico dopo</label><select class="inp" onchange="impostaAutoLock(this.value)">${[['5','5 minuti'],['15','15 minuti'],['30','30 minuti'],['60','1 ora'],['120','2 ore'],['0','Mai']].map(o=>`<option value="${o[0]}" ${String((getAuth()||{}).lockMin===undefined?15:(getAuth()||{}).lockMin)===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
+<div class="form-group"><label class="form-label">Sessione valida</label><select class="inp" onchange="impostaSessione(this.value)">${[['1','1 giorno'],['7','7 giorni'],['30','30 giorni'],['720','Sempre (30 mesi)']].map(o=>`<option value="${o[0]}" ${String(Math.round(((getAuth()||{}).sessionHours||SESSION_HOURS)/1))===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
+<div class="form-group"><label class="form-label">App sul telefono</label><button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="installaApp()">📲 Installa come app</button></div></div>
+<div class="alert gold" style="margin-top:12px">🔒 <b>Accesso personale.</b> L'accesso è protetto da password (PBKDF2‑SHA256, 210.000 cicli) con blocco dopo 3 tentativi errati. Dopo il periodo di inattività scelto l'app si blocca da sola. I tuoi dati non sono condivisi con nessuno.</div></div>
+${syncCardHTML()}
 <div class="grid2"><div class="card"><div class="card-title" style="margin-bottom:10px">💾 Backup</div><div class="stack" style="gap:8px">
 <button class="btn btn-gold" onclick="esportaBackup()">📥 Esporta backup</button>
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
-<button class="btn btn-danger" onclick="if(confirm('Eliminare TUTTI i dati?')){localStorage.removeItem('${KEY}');location.reload()}">🗑️ Reset</button></div></div>
+<button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
-function cambiaPassword(){const cur=document.getElementById('sec-cur').value,n1=document.getElementById('sec-n1').value,n2=document.getElementById('sec-n2').value;const a=getAuth()||{};const lp=a.localPass||DB.settings._localPass;
-if(lp&&hashSimple(cur)!==lp){showToast('Password attuale errata','error');return}if(n1.length<4){showToast('Min 4','error');return}if(n1!==n2){showToast('Non coincidono','error');return}
-a.localPass=hashSimple(n1);DB.settings._localPass=a.localPass;saveAuth(a);save();showToast('🔑 Password aggiornata')}
-function esportaBackup(){const b=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓')}
-function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati?'))return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(!d||typeof d!=='object')throw 0;DB=d;initDB();save();render();showToast('Importato ✓')}catch(x){showToast('File non valido','error')}};r.readAsText(f)}
+async function cambiaPassword(){const cur=document.getElementById('sec-cur').value,n1=document.getElementById('sec-n1').value,n2=document.getElementById('sec-n2').value;
+if(!(await verificaPassword(cur))){showToast('Password attuale errata','error');return}
+if(n1.length<6){showToast('Minimo 6 caratteri','error');return}if(n1!==n2){showToast('Non coincidono','error');return}
+if(!(await aggiornaHashPassword(n1))){showToast('Cifratura non disponibile (serve HTTPS)','error');return}
+const a=getAuth()||{};a.ts=Date.now();saveAuth(a);save();await sbloccoCloud(n1);
+if(window.ImmoSync)ImmoSync.syncNow('password');
+['sec-cur','sec-n1','sec-n2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
+showToast('🔑 Password aggiornata e dati ricifrati')}
+function impostaAutoLock(v){const a=getAuth()||{};a.lockMin=parseInt(v,10)||0;saveAuth(a);armaLock();showToast('Blocco automatico: '+(a.lockMin?a.lockMin+' minuti':'disattivato'))}
+function impostaSessione(v){const a=getAuth()||{};a.sessionHours=Math.max(1,parseInt(v,10)||SESSION_HOURS);a.ts=Date.now();saveAuth(a);showToast('Sessione aggiornata')}
+function resetTotale(){if(!confirm('Eliminare TUTTI i dati da questo dispositivo? Se la sincronizzazione cloud è attiva i dati torneranno al prossimo sync.'))return;
+if(!confirm('Conferma definitiva: cancello archivio locale, storico e sessione.'))return;
+try{localStorage.removeItem(KEY);localStorage.removeItem('immocrm_snap_v1');localStorage.removeItem(AUTH_KEY);localStorage.removeItem('immocrm_ls_main');localStorage.removeItem('immocrm_ls_hist');localStorage.removeItem('immocrm_ls_key')}catch(e){}
+if(window.indexedDB&&indexedDB.databases){indexedDB.databases().then(l=>{(l||[]).forEach(d=>{if(d.name==='immocrm')indexedDB.deleteDatabase('immocrm')})}).catch(()=>{})}
+location.reload()}
+async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
+const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
+showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
+function esportaBackup(){const out={_export:'immocrm',versione:'10.2',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
+function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
+r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
+DB=dati;window.DB=DB;_dbReady=true;initDB();
+if(window.ImmoSync){ImmoSync.adopt(DB);ImmoSync.mirror(DB)}
+save();render();updateBadges();showToast('Importato ✓');if(window.ImmoSync)ImmoSync.syncNow('import')}catch(x){showToast('File non valido','error')}};r.readAsText(f)}
+/* ---------- PANNELLO SINCRONIZZAZIONE ---------- */
+function syncCardHTML(){
+if(!window.ImmoSync)return'';
+const S=ImmoSync.status(),cfg=ImmoSync.config();
+const stati={off:['💾','Solo questo dispositivo','var(--text2)'],idle:['⏸️','In attesa','var(--text2)'],syncing:['⏳','Sincronizzo…','var(--blue)'],ok:['✅','Sincronizzato','var(--green)'],error:['⚠️','Problema','var(--red)']};
+const st=stati[S.state]||stati.off;
+const off=navigator.onLine===false;
+const disp=DB._devices||{};
+const dispRows=Object.keys(disp).map(k=>`<div class="row" style="justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:6px"><div><b class="text-sm">${esc(disp[k].name||'Dispositivo')}</b>${k===ImmoSync.deviceId()?' <span class="badge badge-green">questo</span>':''}<div style="font-size:10px;color:var(--text2)">ultimo sync ${disp[k].ts?new Date(disp[k].ts).toLocaleString('it-IT'):'—'}</div></div></div>`).join('')||'<div class="text-sm text-muted">Nessun dispositivo ha ancora sincronizzato.</div>';
+return `<div class="card" id="sync-card"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+<div><div class="card-title" style="font-size:15px">☁️ Sincronizzazione multi‑dispositivo</div>
+<div class="card-subtitle">Gli stessi dati (contatti, immobili, incroci, agenda) su PC, tablet e smartphone</div></div>
+<div class="row-tight"><span class="badge" style="background:${st[2]}22;color:${st[2]}">${st[0]} ${st[1]}</span>${off?'<span class="badge badge-orange">📴 offline</span>':''}</div></div>
+<div class="form-row-3">
+<div class="form-group"><label class="form-label">Dove salvo i dati</label><select class="inp" id="sy-mode">
+<option value="off" ${cfg.mode==='off'?'selected':''}>💾 Solo questo dispositivo</option>
+<option value="gist" ${cfg.mode==='gist'?'selected':''}>☁️ Cloud personale (Gist GitHub privato)</option>
+<option value="rest" ${cfg.mode==='rest'?'selected':''}>🔌 Endpoint REST personale</option></select></div>
+<div class="form-group"><label class="form-label">Token GitHub <span class="text-muted">(permesso: gist)</span></label><input class="inp" id="sy-token" type="password" autocomplete="off" placeholder="ghp_…" value="${esc(cfg.token||'')}"></div>
+<div class="form-group"><label class="form-label">ID archivio <span class="text-muted">(vuoto = ne creo uno)</span></label><input class="inp" id="sy-gist" placeholder="es. 3f1c…" value="${esc(cfg.gistId||'')}"></div>
+<div class="form-group" style="grid-column:1/-1"><label class="form-label">Endpoint REST <span class="text-muted">(solo se usi un server tuo)</span></label><input class="inp" id="sy-rest" placeholder="https://…" value="${esc(cfg.restUrl||'')}"></div>
+<div class="form-group"><label class="form-label">Controllo automatico ogni</label><select class="inp" id="sy-min">${[1,5,15,30,60].map(m=>`<option value="${m}" ${String(cfg.autoPullMin)===String(m)?'selected':''}>${m} min</option>`).join('')}</select></div>
+<div class="form-group"><label class="form-label">Cifratura cloud</label><select class="inp" id="sy-enc"><option value="1" ${cfg.encrypt?'selected':''}>🔒 Attiva (AES‑256)</option><option value="0" ${!cfg.encrypt?'selected':''}>Non cifrato (sconsigliato)</option></select></div>
+<div class="form-group"><label class="form-label">Nome di questo dispositivo</label><input class="inp" id="sy-dev" value="${esc(ImmoSync.deviceName()||'')}"></div></div>
+<div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap">
+<button class="btn btn-gold" onclick="syncCollega()">🔗 Collega e sincronizza</button>
+<button class="btn btn-primary" onclick="syncOra()">🔄 Sincronizza ora</button>
+<button class="btn btn-ghost" onclick="syncScarica()">⬇️ Scarica dal cloud</button>
+<button class="btn btn-ghost" onclick="syncCarica()">⬆️ Carica ora</button>
+<button class="btn btn-ghost" onclick="syncSblocca()">🔑 Sblocca archivio</button>
+<button class="btn btn-danger" onclick="syncScollega()">Scollega</button></div>
+<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap;align-items:flex-end">
+<div class="form-group" style="flex:1;min-width:200px"><label class="form-label">📥 Hai un codice da un altro dispositivo? Incollalo qui</label><input class="inp" id="sy-code" placeholder="IMMOCRM1.…"></div>
+<button class="btn btn-primary" onclick="usaCodiceSync()">Usa codice</button>
+<button class="btn btn-ghost" onclick="mostraCodiceSync()">📤 Genera codice per un altro dispositivo</button></div>
+<div id="sy-msg" style="margin-top:10px;font-size:12px;min-height:18px;color:${S.state==='error'?'var(--red)':'var(--text2)'}">${S.lastError?('⚠️ '+esc(S.lastError)):('Ultimo salvataggio nel cloud: '+(S.lastPush?new Date(S.lastPush).toLocaleString('it-IT'):'mai')+' · Ultimo controllo: '+(S.lastPull?new Date(S.lastPull).toLocaleString('it-IT'):'mai'))}</div>
+<div class="divider"></div>
+<div class="grid2">
+<div><div class="card-title" style="margin-bottom:8px">📱 Dispositivi collegati</div>${dispRows}</div>
+<div><div class="card-title" style="margin-bottom:8px">🕓 Backup automatici su questo dispositivo</div><div id="sy-hist" class="text-sm text-muted">Carico lo storico…</div></div></div>
+<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--gold)">📖 Come si attiva in 3 minuti (guida)</summary>
+<ol style="font-size:12px;line-height:1.9;padding-left:18px;margin-top:8px;color:var(--text2)">
+<li>Apri <a href="https://github.com/settings/tokens/new?description=ImmoCRM&scopes=gist" target="_blank" rel="noopener" style="color:var(--primary)">github.com/settings/tokens/new</a> (devi essere collegato col tuo account GitHub).</li>
+<li>Note: <code>ImmoCRM</code> · Scadenza: quella che preferisci · Spunta <b>solo</b> la casella <code>gist</code> · <b>Generate token</b>.</li>
+<li>Copia il token (inizia con <code>ghp_</code> o <code>github_pat_</code>) e incollalo qui sopra nel campo <b>Token GitHub</b>.</li>
+<li>Lascia vuoto <b>ID archivio</b> e premi <b>Collega e sincronizza</b>: creo io un Gist <b>privato</b> nel tuo GitHub e ci salvo i dati cifrati.</li>
+<li>Su tablet e smartphone apri lo stesso indirizzo, accedi con la tua password, incolla <b>lo stesso token</b> e l'<b>ID archivio</b> che trovi qui, poi premi <b>Collega e sincronizza</b>.</li>
+<li>Da lì in poi tutto è automatico: salvi su un dispositivo e in pochi secondi i dati (e gli incroci) arrivano sugli altri.</li>
+</ol>
+<div class="alert gold">🔐 Il token resta solo su questo dispositivo. Con il permesso <code>gist</code> può scrivere unicamente i tuoi archivi personali: non tocca repository né account. Se un giorno vuoi revocarlo: github.com → Settings → Developer settings → Tokens → Delete.</div>
+</details></div>`}
+function syncMsg(t,col){const e=document.getElementById('sy-msg');if(e){e.textContent=t;e.style.color=col||'var(--text2)'}}
+async function syncCollega(){const cfg=ImmoSync.config();
+const patch={mode:document.getElementById('sy-mode').value,token:document.getElementById('sy-token').value.trim(),gistId:document.getElementById('sy-gist').value.trim(),restUrl:document.getElementById('sy-rest').value.trim(),autoPullMin:parseInt(document.getElementById('sy-min').value,10)||5,encrypt:document.getElementById('sy-enc').value==='1'};
+if(patch.mode!=='off'&&!patch.token){syncMsg('⚠️ Serve il token GitHub (o REST) per collegare il cloud','var(--red)');return}
+if(patch.mode==='gist'&&patch.encrypt&&!ImmoSync.hasMasterKey()){syncMsg('⚠️ Cifratura attiva ma password non disponibile: premi prima "Sblocca archivio"','var(--red)');return}
+await ImmoSync.setConfig(patch);
+const dev=document.getElementById('sy-dev').value.trim();if(dev)await ImmoSync.setDeviceName(dev);
+syncMsg('⏳ Collegamento in corso…','var(--blue)');
+const r=await ImmoSync.syncNow('collega');
+if(r&&r.error){syncMsg('⚠️ '+r.error,'var(--red)');return}
+if(ImmoSync.status().state==='error'){syncMsg('⚠️ '+ImmoSync.status().lastError,'var(--red)');return}
+save();renderSyncPill();syncMsg('✅ Collegato: dati salvati nel cloud e disponibili sugli altri dispositivi','var(--green)');showToast('☁️ Sincronizzazione attiva');render()}
+async function syncOra(){syncMsg('⏳ Sincronizzo…','var(--blue)');const r=await ImmoSync.syncNow('manuale');const S=ImmoSync.status();
+syncMsg(S.state==='error'?('⚠️ '+S.lastError):'✅ Sincronizzato alle '+new Date().toLocaleTimeString('it-IT'),S.state==='error'?'var(--red)':'var(--green)');renderSyncPill();caricaStorico()}
+async function syncScarica(){syncMsg('⏳ Scarico dal cloud…','var(--blue)');await ImmoSync.pull();const S=ImmoSync.status();
+syncMsg(S.state==='error'?('⚠️ '+S.lastError):'✅ Dati cloud applicati a questo dispositivo',S.state==='error'?'var(--red)':'var(--green)');renderSyncPill();render()}
+async function syncCarica(){syncMsg('⏳ Carico nel cloud…','var(--blue)');await ImmoSync.syncNow('carica');const S=ImmoSync.status();
+syncMsg(S.state==='error'?('⚠️ '+S.lastError):'✅ Caricato nel cloud',S.state==='error'?'var(--red)':'var(--green)');renderSyncPill()}
+async function syncSblocca(){const ok=await chiediPasswordCloud(null);if(ok){syncMsg('🔑 Chiave di cifratura pronta','var(--green)');ImmoSync.syncNow('sblocco')}return ok}
+function mostraCodiceSync(){const c=window.ImmoSync?ImmoSync.connectCode():null;
+if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e sincronizza")','var(--red)');return}
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>📤 Codice per un altro dispositivo</h2>
+<p class="text-muted text-sm" style="margin-bottom:10px">Copialo. Sullo smartphone apri ImmoCRM → Impostazioni → Sincronizzazione, incollalo in "Usa codice" e tocca "Sincronizza ora". Il codice contiene il permesso di scrittura del tuo archivio: trattalo come una password e non condividerlo.</p>
+<textarea class="inp" id="codice-sync" rows="4" readonly onclick="this.select()" style="font-size:11px;word-break:break-all">${c}</textarea>
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaCodiceSync()">📋 Copia</button></div></div></div>`)}
+function copiaCodiceSync(){const el=document.getElementById('codice-sync');if(!el)return;el.select();
+try{document.execCommand('copy');showToast('📋 Codice copiato')}catch(e){}
+if(navigator.clipboard)navigator.clipboard.writeText(el.value).then(()=>showToast('📋 Codice copiato')).catch(()=>{})}
+async function usaCodiceSync(){const el=document.getElementById('sy-code');const v=el?el.value:'';
+if(!window.ImmoSync){return}
+syncMsg('⏳ Applicazione codice…','var(--blue)');
+try{await ImmoSync.applyConnectCode(v);
+const dev=document.getElementById('sy-dev');if(dev&&dev.value.trim())await ImmoSync.setDeviceName(dev.value.trim());
+syncMsg('✅ Codice applicato: allineo i dati…','var(--green)');renderSyncPill();
+await ImmoSync.syncNow('codice');render();showToast('☁️ Dispositivo collegato');}
+catch(e){syncMsg('⚠️ '+(e&&e.message?e.message:'Codice non valido'),'var(--red)')}}
+function syncScollega(){if(!confirm('Scollegare il cloud? I dati restano su questo dispositivo.'))return;
+ImmoSync.setConfig({mode:'off'});renderSyncPill();render();showToast('Cloud scollegato','info')}
+async function caricaStorico(){const box=document.getElementById('sy-hist');if(!box||!window.ImmoSync)return;
+const list=await ImmoSync.historyList();
+box.innerHTML=list.length?list.map(h=>`<div class="row" style="justify-content:space-between;padding:7px 9px;background:var(--bg2);border-radius:8px;margin-bottom:6px"><div style="font-size:11px">${new Date(h.ts).toLocaleString('it-IT')}<div class="text-muted" style="font-size:10px">${Object.keys(h.counts||{}).filter(k=>h.counts[k]).map(k=>k+' '+h.counts[k]).join(' · ')||'vuoto'}</div></div><button class="btn btn-ghost btn-xs" onclick="ripristinaStorico(${h.ts})">Ripristina</button></div>`).join(''):'<div class="text-sm text-muted">Nessuno snapshot ancora: ne creo uno ogni 20 minuti di lavoro.</div>'}
+async function ripristinaStorico(ts){if(!confirm('Ripristinare i dati di '+new Date(ts).toLocaleString('it-IT')+'? Le modifiche successive andranno perse su questo dispositivo.'))return;
+const d=await ImmoSync.historyGet(ts);if(!d){showToast('Snapshot non disponibile','error');return}
+DB=d;window.DB=DB;_dbReady=true;initDB();if(window.ImmoSync){ImmoSync.adopt(DB);ImmoSync.mirror(DB)}save();render();showToast('↩️ Backup ripristinato')}
 /* MOBILE + BOOT */
 function injectMobile(){if(document.getElementById('mobilenav'))return;
 const n=document.createElement('div');n.id='mobilenav';
@@ -785,7 +1031,7 @@ document.body.appendChild(q)}
 function closeQuickMenu(){const q=document.querySelector('.quickmenu');if(q)q.remove()}
 function closeModal(e,el){if(e&&e.target!==e.currentTarget)return;if(el)el.remove();else document.querySelectorAll('.modal-overlay').forEach(m=>m.remove())}
 window.addEventListener('error',function(ev){try{var e=document.getElementById('login-err');if(e&&ev&&ev.message)e.textContent='Errore: '+ev.message}catch(x){}});
-function bootApp(){
+async function bootApp(){
 try{
 Object.assign(RENDERERS,{
 regia:renderRegia,obiettivi:renderObiettivi,chiamate:renderChiamate,dashboard:renderDashboard,
@@ -796,6 +1042,9 @@ documenti:renderDocumenti,fatture:renderFatture,'report-sett':renderReportSett,
 'report-prop':renderReportProp,marketing:renderMarketing,statistiche:renderStatistiche,
 impostazioni:renderImpostazioni
 });
+if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot();BOOT_DB=b?b.db:null}catch(e){console.warn('boot sync',e)}}
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
+if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
 checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.1','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
