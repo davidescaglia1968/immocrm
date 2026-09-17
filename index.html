@@ -46,7 +46,7 @@
 <div id="toast-container"></div>
 <div id="search-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGlobalSearch()"><div class="search-modal" onclick="event.stopPropagation()"><div class="search-head"><input id="search-input" placeholder="Cerca…" oninput="runGlobalSearch(this.value)"><button onclick="closeGlobalSearch()">ESC</button></div><div id="search-results"></div></div></div>
 <style>
-:root{--bg:#0f1117;--bg2:#13151f;--bg3:#1a1d27;--bg4:#1e2235;--bg5:#252a3d;--border:#252a3d;--border2:#2d3350;--text:#e8eaf0;--text2:#8891b0;--text3:#b0b8d0;--primary:#6366f1;--primary2:#8b5cf6;--primary-glow:rgba(99,102,241,.3);--gold:#c9a96e;--gold2:#e8c87a;--green:#22c55e;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--blue:#3b82f6;--sidebar-w:220px;--topbar-h:54px;--font:'DM Sans',sans-serif;--font-serif:'Cormorant Garamond',serif;--font-mono:'DM Mono',monospace;--radius-lg:16px;--radius-xl:20px;--shadow-3:0 8px 30px rgba(0,0,0,.35);--t-fast:.15s;--t-med:.25s;--ease:cubic-bezier(.4,0,.2,1)}
+:root{--bg:#0f1117;--bg2:#13151f;--bg3:#1a1d27;--bg4:#1e2235;--bg5:#252a3d;--border:#252a3d;--border2:#2d3350;--text:#eef1f8;--text2:#c5cde0;--text3:#d7deee;--primary:#6366f1;--primary2:#8b5cf6;--primary-glow:rgba(99,102,241,.3);--gold:#c9a96e;--gold2:#e8c87a;--green:#22c55e;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--blue:#3b82f6;--sidebar-w:220px;--topbar-h:54px;--font:'DM Sans',sans-serif;--font-serif:'Cormorant Garamond',serif;--font-mono:'DM Mono',monospace;--radius-lg:16px;--radius-xl:20px;--shadow-3:0 8px 30px rgba(0,0,0,.35);--t-fast:.15s;--t-med:.25s;--ease:cubic-bezier(.4,0,.2,1)}
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;min-height:100vh;min-height:100dvh;overflow:hidden}
 body{display:flex;background:var(--bg);color:var(--text);font-family:var(--font),system-ui,sans-serif;font-size:14px;line-height:1.5}
 #app-shell{flex:1;width:100%;min-width:0;height:100%}
@@ -223,6 +223,11 @@ nav{padding:10px 7px;flex:1;overflow-y:auto;display:flex;flex-direction:column;g
 .qm-btn .qm-ico{font-size:22px;display:block;margin-bottom:4px}
 }
 @media print{#sidebar,#topbar,.modal-overlay,#mobilenav{display:none!important}}
+input::placeholder,textarea::placeholder{color:#a8b2cc;opacity:1}
+.stat-lbl{font-weight:500;letter-spacing:.2px}
+.kanban-empty{font-style:normal;font-weight:500;color:var(--text2)}
+.inp option,.form-control option{background:var(--bg3);color:var(--text)}
+.nav-item.active{color:#fff}
 </style>
 <script>
 'use strict';
@@ -969,5 +974,5 @@ checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.1','font-s
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
 else bootApp();
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3c7a365bfb7ea58',t:'MTc4OTY0MzE1Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3c7d1c62d14ea35',t:'MTc4OTY0NTA1MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
