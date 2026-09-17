@@ -150,6 +150,19 @@ async function testGistProvider() {
 /* ---------------------------------------------------------------- */
 /* 6) app.js in jsdom: boot, auth, incroci, backup                  */
 /* ---------------------------------------------------------------- */
+async function testConnectCode() {
+  section('5b. Codice di collegamento (round-trip)');
+  await Sync.setConfig({ mode: 'gist', token: 'tk-abc', gistId: 'gistXYZ', encrypt: true, restUrl: '' });
+  const code = Sync.connectCode();
+  ok(typeof code === 'string' && code.indexOf('IMMOCRM1.') === 0, 'connectCode genera stringa col prefisso');
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+  await Sync.applyConnectCode(code);
+  const c = Sync.config();
+  ok(c.mode === 'gist' && c.token === 'tk-abc' && c.gistId === 'gistXYZ' && c.encrypt === true, 'applyConnectCode ripristina mode/token/gist/cifratura');
+  const bad = await Sync.applyConnectCode('IMMOCRM1.!!!non-base64!!!').catch(e => e);
+  ok(bad && /non valido/i.test((bad && bad.message) || ''), 'codice corrotto rifiutato');
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+}
 const { JSDOM } = require('jsdom');
 const { IDBFactory } = require('fake-indexeddb');
 
@@ -253,6 +266,7 @@ async function testApp() {
   try { await testTombstones(); } catch (e) { failed++; failures.push('tombstone: ' + e.message); console.log('  ❌ tombstone exception', e.message); }
   try { await testTrackUpdatedAt(); } catch (e) { failed++; failures.push('track: ' + e.message); console.log('  ❌ track exception', e.message); }
   try { await testGistProvider(); } catch (e) { failed++; failures.push('gist: ' + e.message); console.log('  ❌ gist exception', e.message); }
+  try { await testConnectCode(); } catch (e) { failed++; failures.push('connect: ' + e.message); console.log('  ❌ connect exception', e.message); }
   try { await testApp(); } catch (e) { failed++; failures.push('app: ' + e.message); console.log('  ❌ app exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);

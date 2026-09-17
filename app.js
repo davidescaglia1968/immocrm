@@ -955,6 +955,10 @@ return `<div class="card" id="sync-card"><div class="row" style="justify-content
 <button class="btn btn-ghost" onclick="syncCarica()">⬆️ Carica ora</button>
 <button class="btn btn-ghost" onclick="syncSblocca()">🔑 Sblocca archivio</button>
 <button class="btn btn-danger" onclick="syncScollega()">Scollega</button></div>
+<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap;align-items:flex-end">
+<div class="form-group" style="flex:1;min-width:200px"><label class="form-label">📥 Hai un codice da un altro dispositivo? Incollalo qui</label><input class="inp" id="sy-code" placeholder="IMMOCRM1.…"></div>
+<button class="btn btn-primary" onclick="usaCodiceSync()">Usa codice</button>
+<button class="btn btn-ghost" onclick="mostraCodiceSync()">📤 Genera codice per un altro dispositivo</button></div>
 <div id="sy-msg" style="margin-top:10px;font-size:12px;min-height:18px;color:${S.state==='error'?'var(--red)':'var(--text2)'}">${S.lastError?('⚠️ '+esc(S.lastError)):('Ultimo salvataggio nel cloud: '+(S.lastPush?new Date(S.lastPush).toLocaleString('it-IT'):'mai')+' · Ultimo controllo: '+(S.lastPull?new Date(S.lastPull).toLocaleString('it-IT'):'mai'))}</div>
 <div class="divider"></div>
 <div class="grid2">
@@ -990,6 +994,23 @@ syncMsg(S.state==='error'?('⚠️ '+S.lastError):'✅ Dati cloud applicati a qu
 async function syncCarica(){syncMsg('⏳ Carico nel cloud…','var(--blue)');await ImmoSync.syncNow('carica');const S=ImmoSync.status();
 syncMsg(S.state==='error'?('⚠️ '+S.lastError):'✅ Caricato nel cloud',S.state==='error'?'var(--red)':'var(--green)');renderSyncPill()}
 async function syncSblocca(){const ok=await chiediPasswordCloud(null);if(ok){syncMsg('🔑 Chiave di cifratura pronta','var(--green)');ImmoSync.syncNow('sblocco')}return ok}
+function mostraCodiceSync(){const c=window.ImmoSync?ImmoSync.connectCode():null;
+if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e sincronizza")','var(--red)');return}
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>📤 Codice per un altro dispositivo</h2>
+<p class="text-muted text-sm" style="margin-bottom:10px">Copialo. Sullo smartphone apri ImmoCRM → Impostazioni → Sincronizzazione, incollalo in "Usa codice" e tocca "Sincronizza ora". Il codice contiene il permesso di scrittura del tuo archivio: trattalo come una password e non condividerlo.</p>
+<textarea class="inp" id="codice-sync" rows="4" readonly onclick="this.select()" style="font-size:11px;word-break:break-all">${c}</textarea>
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaCodiceSync()">📋 Copia</button></div></div></div>`)}
+function copiaCodiceSync(){const el=document.getElementById('codice-sync');if(!el)return;el.select();
+try{document.execCommand('copy');showToast('📋 Codice copiato')}catch(e){}
+if(navigator.clipboard)navigator.clipboard.writeText(el.value).then(()=>showToast('📋 Codice copiato')).catch(()=>{})}
+async function usaCodiceSync(){const el=document.getElementById('sy-code');const v=el?el.value:'';
+if(!window.ImmoSync){return}
+syncMsg('⏳ Applicazione codice…','var(--blue)');
+try{await ImmoSync.applyConnectCode(v);
+const dev=document.getElementById('sy-dev');if(dev&&dev.value.trim())await ImmoSync.setDeviceName(dev.value.trim());
+syncMsg('✅ Codice applicato: allineo i dati…','var(--green)');renderSyncPill();
+await ImmoSync.syncNow('codice');render();showToast('☁️ Dispositivo collegato');}
+catch(e){syncMsg('⚠️ '+(e&&e.message?e.message:'Codice non valido'),'var(--red)')}}
 function syncScollega(){if(!confirm('Scollegare il cloud? I dati restano su questo dispositivo.'))return;
 ImmoSync.setConfig({mode:'off'});renderSyncPill();render();showToast('Cloud scollegato','info')}
 async function caricaStorico(){const box=document.getElementById('sy-hist');if(!box||!window.ImmoSync)return;

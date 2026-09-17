@@ -31,7 +31,7 @@ var PUSH_DEBOUNCE = 2500;
 var KDF_ITER  = 210000;
 var FILE_NAME = 'immocrm.json';
 
-var cfg = { mode: 'off', gistId: '', token: '', apiBase: 'https://api.github.com', encrypt: true, autoPullMin: 5, restUrl: '' };
+var cfg = { mode: 'off', gistId: '', token: '', apiBase: 'https://api.github.com', encrypt: true, autoPullMin: 1, restUrl: '' };
 var mainLsKey = 'immocrm_pro_v10';   // chiave localStorage usata dall'app (allineata con app.js)
 var snap = { rec: {}, fld: {} };
 var deviceId = '', deviceName = '';
@@ -244,11 +244,10 @@ function track(db) {
       var h = djb2(stableString(rec));
       var key = k + '#' + id;
       if (snap.rec[key] !== h) {
-        snap.rec[key] = h;
         rec.updatedAt = t;                     // marca il record come modificato
         if (db._tomb[k] && db._tomb[k][id]) delete db._tomb[k][id]; // "riesumato"
       }
-      next.rec[key] = h;
+      next.rec[key] = djb2(stableString(rec)); // hash DOPO l'eventuale bump
     }
     // eliminazioni → tombstone, così la cancellazione arriva anche agli altri dispositivi
     Object.keys(snap.rec).forEach(function (key) {
@@ -783,6 +782,24 @@ var Sync = {
     var m = { id: deviceId, name: deviceName };
     lsSet(LS_META, m);
     return idbPut('meta', 'device', m).then(function () { return deviceName; });
+  },
+  connectCode: function () {
+    if (cfg.mode === 'off' || !cfg.token) return null;
+    var o = { v: 1, m: cfg.mode, g: cfg.gistId, t: cfg.token, e: cfg.encrypt ? 1 : 0, r: cfg.restUrl };
+    return 'IMMOCRM1.' + b64enc(new TextEncoder().encode(JSON.stringify(o)));
+  },
+  applyConnectCode: function (str) {
+    try {
+      var s = String(str || '').trim();
+      var tag = 'IMMOCRM1.';
+      var i = s.indexOf(tag);
+      if (i >= 0) s = s.slice(i + tag.length);
+      s = s.replace(/\s+/g, '');
+      var json = JSON.parse(new TextDecoder().decode(b64dec(s)));
+      var patch = { mode: json.m || 'gist', token: json.t || '', gistId: json.g || '', encrypt: json.e !== 0, restUrl: json.r || '', apiBase: json.a || cfg.apiBase };
+      if (!patch.token) return Promise.reject(new SyncError(0, 'Il codice non contiene un permesso valido'));
+      return this.setConfig(patch).then(function () { return clone(cfg); });
+    } catch (e) { return Promise.reject(new SyncError(0, 'Codice di collegamento non valido')); }
   },
   setConfig: function (patch) {
     Object.keys(patch || {}).forEach(function (k) { if (k in cfg) cfg[k] = patch[k]; });
