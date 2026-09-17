@@ -1,0 +1,23 @@
+NON copiare e incollare. Il file è troppo grande per l'editor di GitHub.
+
+1. Scarica immocrm-per-github.zip e scompattalo.
+   Trovi 4 file: index.html, style.css, app.js, .nojekyll
+
+2. Apri https://github.com/davidescaglia1968/immocrm
+
+3. Clicca "Add file" → "Upload files"
+
+4. Trascina NELLO STESSO CARICAMENTO questi 4 file
+   (sovrascrivono quelli vecchi)
+
+5. Clicca "Commit changes"
+
+6. Aspetta 1-2 minuti, poi apri:
+   https://davidescaglia1968.github.io/immocrm/
+   Se vedi la versione vecchia: Ctrl+F5
+
+Password: successo
+
+NON aprire index.html dalla pagina del codice su github.com
+NON usare raw.githubusercontent.com
+NON incollare il testo nell'editor.
