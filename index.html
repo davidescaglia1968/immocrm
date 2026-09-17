@@ -1,12 +1,16 @@
+<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <meta name="theme-color" content="#0f1117">
+<meta name="robots" content="noindex,nofollow">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>ImmoCRM Pro v10.1 — Scaglia · Piacenza</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
 <body>
+<noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
 <div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.1 · Real Estate Operating System</div></div>
@@ -43,8 +47,9 @@
 <div id="search-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGlobalSearch()"><div class="search-modal" onclick="event.stopPropagation()"><div class="search-head"><input id="search-input" placeholder="Cerca…" oninput="runGlobalSearch(this.value)"><button onclick="closeGlobalSearch()">ESC</button></div><div id="search-results"></div></div></div>
 <style>
 :root{--bg:#0f1117;--bg2:#13151f;--bg3:#1a1d27;--bg4:#1e2235;--bg5:#252a3d;--border:#252a3d;--border2:#2d3350;--text:#e8eaf0;--text2:#8891b0;--text3:#b0b8d0;--primary:#6366f1;--primary2:#8b5cf6;--primary-glow:rgba(99,102,241,.3);--gold:#c9a96e;--gold2:#e8c87a;--green:#22c55e;--orange:#f97316;--red:#ef4444;--purple:#a855f7;--blue:#3b82f6;--sidebar-w:220px;--topbar-h:54px;--font:'DM Sans',sans-serif;--font-serif:'Cormorant Garamond',serif;--font-mono:'DM Mono',monospace;--radius-lg:16px;--radius-xl:20px;--shadow-3:0 8px 30px rgba(0,0,0,.35);--t-fast:.15s;--t-med:.25s;--ease:cubic-bezier(.4,0,.2,1)}
-*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}
-body{display:flex;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.5}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;min-height:100vh;min-height:100dvh;overflow:hidden}
+body{display:flex;background:var(--bg);color:var(--text);font-family:var(--font),system-ui,sans-serif;font-size:14px;line-height:1.5}
+#app-shell{flex:1;width:100%;min-width:0;height:100%}
 ::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:5px}
 button{cursor:pointer;font-family:var(--font);border:none;background:none;color:inherit}
 input,select,textarea{outline:none;font-family:var(--font);color:inherit}
@@ -296,7 +301,9 @@ const fmtEuro=n=>n!=null&&n!==''&&!isNaN(n)?new Intl.NumberFormat('it-IT',{style
 const fmtEuroShort=n=>{if(!n&&n!==0)return'—';if(Math.abs(n)>=1e6)return'€ '+(n/1e6).toFixed(1)+'M';if(Math.abs(n)>=1e3)return'€ '+Math.round(n/1e3)+'K';return fmtEuro(n)};
 const fmtDate=d=>d?new Date(d).toLocaleDateString('it-IT'):'—';
 const fmtDateShort=d=>d?new Date(d).toLocaleDateString('it-IT',{day:'2-digit',month:'short'}):'—';
-const today=()=>new Date().toISOString().split('T')[0];
+const pad2=n=>String(n).padStart(2,'0');
+const isoLocal=d=>{const x=new Date(d);return x.getFullYear()+'-'+pad2(x.getMonth()+1)+'-'+pad2(x.getDate())};
+const today=()=>isoLocal(new Date());
 const nowISO=()=>new Date().toISOString();
 const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 const ucfirst=s=>s?s.charAt(0).toUpperCase()+s.slice(1):'';
@@ -308,12 +315,12 @@ const hashSimple=s=>{let h=0;for(let i=0;i<(s||'').length;i++){h=((h<<5)-h)+s.ch
 const sumBy=(a,k)=>a.reduce((s,x)=>s+(typeof k==='function'?k(x):(x[k]||0)),0);
 function weekStart(d){const x=new Date(d);const day=(x.getDay()+6)%7;x.setDate(x.getDate()-day);x.setHours(0,0,0,0);return x}
 function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x}
-function iso(d){return d.toISOString().slice(0,10)}
+function iso(d){return isoLocal(d)}
 function weekLabel(ws,we){const m=['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];return ws.getDate()+'–'+we.getDate()+' '+m[we.getMonth()]}
 function greeting(){const h=new Date().getHours();return h<6?'Buonanotte':h<12?'Buongiorno':h<18?'Buon pomeriggio':'Buonasera'}
 function nomeAgente(){return(DB.settings||{}).agente||'Agente'}
 function getAuth(){try{return JSON.parse(localStorage.getItem(AUTH_KEY)||'null')}catch(e){return null}}
-function saveAuth(a){localStorage.setItem(AUTH_KEY,JSON.stringify(a))}
+function saveAuth(a){try{localStorage.setItem(AUTH_KEY,JSON.stringify(a))}catch(e){console.warn('saveAuth',e)}}
 function isSessionValid(a){return a&&a.ts&&(Date.now()-a.ts)<SESSION_HOURS*3600*1000}
 function initDB(){
 ['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture'].forEach(k=>{if(!DB[k])DB[k]=[]});
@@ -335,7 +342,7 @@ if(lp&&hashSimple(p)===lp){a.loggedIn=true;a.nome=a.nome||DB.settings.agente;a.t
 function doSetup(){const n=document.getElementById('setup-nome').value.trim(),p1=document.getElementById('setup-pass').value,p2=document.getElementById('setup-pass2').value,q=document.getElementById('setup-question').value.trim(),an=document.getElementById('setup-answer').value.trim(),e=document.getElementById('setup-err');e.textContent='';
 if(!n){e.textContent='Nome obbligatorio';return}if(p1.length<4){e.textContent='Password min 4';return}if(p1!==p2){e.textContent='Non coincidono';return}if(!q||!an){e.textContent='Domanda e risposta obbligatorie';return}
 const a={loggedIn:true,nome:n,localPass:hashSimple(p1),question:q,answer:hashSimple(an.toLowerCase()),ts:Date.now()};saveAuth(a);DB.settings._localPass=hashSimple(p1);DB.settings.agente=n;save();entraApp();showToast('Benvenuto '+n+' 👋')}
-function doLogout(){if(!confirm('Uscire?'))return;localStorage.removeItem(AUTH_KEY);location.reload()}
+function doLogout(){if(!confirm('Uscire?'))return;try{localStorage.removeItem(AUTH_KEY)}catch(e){}location.reload()}
 function entraApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-shell').style.display='flex';
 const a=getAuth();if(a&&a.nome){document.getElementById('uname').textContent=a.nome;document.getElementById('uav').textContent=a.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 loadDB();document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
@@ -619,7 +626,7 @@ else if(t==='omi'){const z=getZonaInfo(i);if(!z||!i.superficie){el.innerHTML='<d
 else{el.innerHTML=(i.storicoPrezzi||[]).length?`<div class="table-wrap"><table class="table"><tbody>${i.storicoPrezzi.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${fmtEuroShort(s.prezzo)}</td><td>${s.deltaPct?s.deltaPct+'%':'—'}</td><td>${esc(s.evento||'')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state text-sm">Nessuno storico.</div>'}}
 function saveImmobile(id){const g=v=>document.getElementById(v).value;
 const old=id?(DB.immobili||[]).find(x=>String(x.id)===String(id)):null;
-const d={codice:g('im-cod').trim()||('PC-'+Date.now().toString().slice(-6)),titolo:g('im-tit').trim(),tipo:g('im-tipo'),prezzo:parseFloat(g('im-prezzo'))||0,prezzoIniziale:parseFloat(g('im-prezzoin').value)||parseFloat(g('im-prezzo'))||0,superficie:parseFloat(g('im-mq'))||0,locali:parseInt(g('im-loc'))||0,bagni:parseInt(g('im-bag'))||0,stato:g('im-stato'),fonte:g('im-fonte'),citta:g('im-citta').trim(),zona:g('im-zona').trim(),proprietarioId:parseInt(g('im-prop'))||null,descrizione:g('im-desc').trim(),operazione:'vendita'};
+const d={codice:g('im-cod').trim()||('PC-'+Date.now().toString().slice(-6)),titolo:g('im-tit').trim(),tipo:g('im-tipo'),prezzo:parseFloat(g('im-prezzo'))||0,prezzoIniziale:parseFloat(g('im-prezzoin'))||parseFloat(g('im-prezzo'))||0,superficie:parseFloat(g('im-mq'))||0,locali:parseInt(g('im-loc'))||0,bagni:parseInt(g('im-bag'))||0,stato:g('im-stato'),fonte:g('im-fonte'),citta:g('im-citta').trim(),zona:g('im-zona').trim(),proprietarioId:parseInt(g('im-prop'))||null,descrizione:g('im-desc').trim(),operazione:'vendita'};
 if(!d.titolo||!d.prezzo||!d.citta){showToast('Titolo, prezzo, città obbligatori','error');return}
 if(id&&old){if(old.prezzo>0&&d.prezzo<old.prezzo){d.storicoPrezzi=old.storicoPrezzi||[];d.storicoPrezzi.push({data:today(),prezzo:d.prezzo,deltaPct:Math.round((d.prezzo-old.prezzo)/old.prezzo*1000)/10,evento:'Ribasso'})}else d.storicoPrezzi=old.storicoPrezzi||[];DB.immobili[DB.immobili.findIndex(x=>String(x.id)===String(id))]={...old,...d};showToast('Aggiornato ✓')}
 else{d.id=Date.now();d.dataInserimento=today();d.data_pubblicazione=today();d.visite=0;d.storicoPrezzi=[{data:today(),prezzo:d.prezzo,deltaPct:0,evento:'Inserimento'}];DB.immobili.push(d);showToast('Creato ✓')}
@@ -683,7 +690,7 @@ function deleteOpenHouse(id){if(!confirm('Eliminare?'))return;DB.openhouses=DB.o
 /* PIPELINE */
 function renderPipeline(c){const items=(DB.trattative||[]).slice();
 c.innerHTML=`<div class="stack"><div class="row" style="justify-content:space-between"><div style="font-size:11px;color:var(--text2)">${items.length} trattative</div><button class="btn btn-primary" onclick="openTrattativaModal()">+ Nuova</button></div>
-<div class="kanban-wrap">${FASI.map(f=>{const fi=items.filter(t=>t.fase===f);return`<div class="kanban-col" data-fase="${f}"><div class="kanban-col-head"><div class="kanban-col-title" style="color:${fasiColor[f]}">${FASI_LABEL[f]}</div><div class="kanban-col-count">${fi.length}</div></div>${fi.length?fi.map(t=>`<div class="kanban-card tr-card" data-tid="${t.id}" style="border-left-color:${fasiColor[f]}"><b style="font-size:12px">${esc(t.immobile||'—')}</b><div style="font-size:10px;color:var(--text2)">${esc(t.acquirente||'—')}</div><div style="font-size:11px;font-weight:600;color:var(--primary);margin-top:4px">${fmtEuroShort(t.prezzoOfferto||0)}</div></div>`).join(''):'<div class="kanban-empty">Nessuna</div>'}</div>`}).join('')}</div></div>`;
+<div class="kanban-wrap">${FASI.map(f=>{const fi=items.filter(t=>t.fase===f);return`<div class="kanban-col" data-fase="${f}"><div class="kanban-col-head"><div class="kanban-col-title" style="color:${fasiColor[f]}">${FASI_LABEL[f]}</div><div class="kanban-col-count">${fi.length}</div></div>${fi.length?fi.map(t=>`<div class="kanban-card tr-card" draggable="true" data-tid="${t.id}" style="border-left-color:${fasiColor[f]}"><b style="font-size:12px">${esc(t.immobile||'—')}</b><div style="font-size:10px;color:var(--text2)">${esc(t.acquirente||'—')}</div><div style="font-size:11px;font-weight:600;color:var(--primary);margin-top:4px">${fmtEuroShort(t.prezzoOfferto||0)}</div></div>`).join(''):'<div class="kanban-empty">Nessuna</div>'}</div>`}).join('')}</div></div>`;
 c.querySelectorAll('.kanban-col').forEach(col=>{col.addEventListener('dragover',e=>{e.preventDefault();col.style.background='var(--bg3)'});col.addEventListener('dragleave',()=>col.style.background='');col.addEventListener('drop',e=>{e.preventDefault();col.style.background='';const t=(DB.trattative||[]).find(x=>String(x.id)===String(e.dataTransfer.getData('text/plain')));if(t){t.fase=col.dataset.fase;t.ultimaModifica=today();save();render()}})});
 c.querySelectorAll('.tr-card').forEach(cd=>{cd.addEventListener('dragstart',e=>e.dataTransfer.setData('text/plain',cd.dataset.tid));cd.addEventListener('click',()=>openTrattativaModal(cd.dataset.tid))})}
 function openTrattativaModal(id){const t=id?(DB.trattative||[]).find(x=>String(x.id)===String(id)):{};
@@ -745,7 +752,6 @@ function vtPaint(){const ws=document.getElementById('wizardSteps');if(!ws)return
 ws.innerHTML=STEPS.map((s,i)=>{const n=i+1;return`<div class="wizard-step ${V.step===n?'on':V.step>n?'done':''}" onclick="V.step=${n};vtPaint()"><span class="num">${V.step>n?'✓':n}</span>${s.slice(2)}</div>`}).join('');
 document.getElementById('wizardBody').innerHTML=window['vtStep'+V.step]();
 document.getElementById('navButtons').innerHTML=(V.step>1?'<button class="btn btn-ghost" onclick="V.step--;vtPaint()">← Indietro</button>':'')+'<div class="progress"><div class="progress-bar" style="width:'+(V.step/7*100)+'%"></div></div>'+(V.step<7?'<button class="btn btn-gold" onclick="vtNext()">Avanti →</button>':'<button class="btn btn-gold" onclick="V={step:1,dati:{},risultato:null};vtPaint()">🔄 Nuova</button>');
-if(V.step===1)set setTimeoutFix=0;
 if(V.step===1){setTimeout(()=>{const el=document.getElementById('omi-info');if(el){const r=getOmiRange(V.dati.zona);el.innerHTML='<b>📊 '+esc(V.dati.zona||'—')+'</b> · Vendita € '+r.min+'-'+r.max+'/mq (media € '+r.mid+') · Affitto € '+r.affittoMq+'/mq/mese · Fonte '+r.fonte}},80)}}
 function vtNext(){const d=V.dati;if(V.step===1&&!d.zona){alert('Inserisci la zona');return}if(V.step===2&&(!d.mq||!d.locali)){alert('Inserisci mq e locali');return}if(V.step===3&&!d.anno){alert('Inserisci anno');return}if(V.step===6)vtCalcola();V.step++;vtPaint()}
 function vtStep1(){const d=V.dati;return`<div class="card"><h2 style="color:var(--gold);font-family:var(--font-serif)">📍 Dove si trova?</h2><div class="form-grid"><div class="form-group"><label>Comune</label><input class="form-control" value="${esc(d.citta||'Piacenza')}" onchange="vtd('citta',this.value)"></div><div class="form-group"><label>Zona *</label><input class="form-control" list="zdl" value="${esc(d.zona||'')}" onchange="vtd('zona',this.value)"><datalist id="zdl">${ZONE_PIACENZA.map(z=>`<option value="${esc(z.nome)}">`).join('')}</datalist></div></div><div id="omi-info" style="margin-top:14px;padding:12px;background:rgba(201,169,110,.1);border:1px solid var(--gold);border-radius:8px;font-size:13px"></div></div>`}
@@ -889,7 +895,7 @@ c.innerHTML=`<div class="stack"><div class="card"><div class="row" style="justif
 function metricheSett(){const ws=weekStart(new Date()),we=addDays(ws,6);const a=iso(ws),b=iso(we);
 const ch=(DB.chiamate||[]).filter(x=>x.dataChiamata&&x.dataChiamata>=a&&x.dataChiamata<=b);
 const inc=(DB.mandati||[]).filter(m=>{if(m.stato==='annullato')return false;const d=m.dataFirma||m.dataInizio;return d&&d>=a&&d<=b});
-return{ws,we,chiamate:ch,presentazioni:ch.filter(x=>x.dispPresentazione==='si'),appuntamenti:(DB.appuntamenti||[]).filter(x=>x.data>=a&&x.data<=b&&x.stato!=='annullato'),incarichi:inc}}
+return{ws,we,target:(DB.obiettivi&&DB.obiettivi.incarichiSettimana)||1,chiamate:ch,presentazioni:ch.filter(x=>x.dispPresentazione==='si'),appuntamenti:(DB.appuntamenti||[]).filter(x=>x.data>=a&&x.data<=b&&x.stato!=='annullato'),incarichi:inc}}
 function stampaReportSett(){const m=metricheSett();const ok=m.incarichi.length>=(DB.obiettivi&&DB.obiettivi.incarichiSettimana||1);const w=window.open('','_blank');if(!w)return;
 w.document.write('<html><head><title>Report settimanale</title><style>body{font-family:Georgia,serif;padding:36px}h1{border-bottom:3px solid #c9a96e}.k{display:flex;gap:12px;margin:16px 0}.k div{flex:1;background:#f7f3ea;border:1px solid #e6dcc6;border-radius:10px;padding:12px;text-align:center}.k b{font-size:22px;display:block}</style></head><body><h1>🖨️ Report Settimanale</h1><p>'+esc(nomeAgente())+' · '+weekLabel(m.ws,m.we)+'</p><div class="k"><div><b>'+m.chiamate.length+'</b>chiamate</div><div><b>'+m.presentazioni.length+'</b>presentazioni</div><div><b>'+m.appuntamenti.length+'</b>appuntamenti</div><div><b>'+m.incarichi.length+'</b>incarichi</div></div><p style="font-style:italic">'+(ok?'🎉 Paletto rispettato!':'💪 Paletto non raggiunto: riparti lunedì.')+'</p><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()}
 function renderReportProp(c){const items=(DB.immobili||[]).filter(i=>i.proprietarioId||i.stato==='disponibile');
@@ -945,9 +951,23 @@ q.innerHTML=`<button class="qm-btn" onclick="closeQuickMenu();openContattoModal(
 document.body.appendChild(q)}
 function closeQuickMenu(){const q=document.querySelector('.quickmenu');if(q)q.remove()}
 function closeModal(e,el){if(e&&e.target!==e.currentTarget)return;if(el)el.remove();else document.querySelectorAll('.modal-overlay').forEach(m=>m.remove())}
-function bootApp(){checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.1','font-size:14px;font-weight:bold;color:#c9a96e')}
-document.addEventListener('DOMContentLoaded',bootApp);
+window.addEventListener('error',function(ev){try{var e=document.getElementById('login-err');if(e&&ev&&ev.message)e.textContent='Errore: '+ev.message}catch(x){}});
+function bootApp(){
+try{
+Object.assign(RENDERERS,{
+regia:renderRegia,obiettivi:renderObiettivi,chiamate:renderChiamate,dashboard:renderDashboard,
+'da-fare':renderDaFare,contatti:renderContatti,immobili:renderImmobili,mandati:renderMandati,
+openhouse:renderOpenHouse,pipeline:renderPipeline,mercato:renderMercato,incroci:renderIncroci,
+leads:renderLeads,import:renderImport,attivita:renderAttivita,calendario:renderCalendario,
+documenti:renderDocumenti,fatture:renderFatture,'report-sett':renderReportSett,
+'report-prop':renderReportProp,marketing:renderMarketing,statistiche:renderStatistiche,
+impostazioni:renderImpostazioni
+});
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.1','font-size:14px;font-weight:bold;color:#c9a96e');
+}catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
+else bootApp();
 </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a3c7a365bfb7ea58',t:'MTc4OTY0MzE1Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
-</artifact>
