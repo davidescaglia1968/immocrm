@@ -1,9 +1,9 @@
-ImmoCRM Pro v10.2 — CARICAMENTO SU GITHUB PAGES
+ImmoCRM Pro v10.3 — CARICAMENTO SU GITHUB PAGES
 ================================================
 
 NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
 
-1. Apri https://github.com/davidescaglia1968/immocrm
+1. Apri https://github.com/davidescaglia1968/immocrm (il tuo repository immocrm)
 
 2. Clicca "Add file" → "Upload files"
 
@@ -13,9 +13,9 @@ NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
      index.html
      style.css
      app.js
-     sync.js               ← NUOVO: motore di sincronizzazione
-     sw.js                 ← NUOVO: funziona anche offline
-     manifest.webmanifest  ← NUOVO: installabile come app
+     sync.js               ← motore di sincronizzazione
+     sw.js                 ← funziona anche offline (v10.3: cache aggiornata)
+     manifest.webmanifest  ← installabile come app
      .nojekyll
      icons/  (cartella con: icon-192.png, icon-512.png,
               apple-touch-icon.png, maskable-512.png)
@@ -27,6 +27,19 @@ NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
 
 ----------------------------------------------------------------
 
+COSA C'È DI NUOVO NELLA v10.3
+  • LOGIN OBBLIGATORIO ad ogni avvio: l'app non si apre più da sola,
+    chiede sempre la password.
+  • CODICE DISPOSITIVO: dopo il primo collegamento te lo mostro io,
+    con un pulsante "Copia".
+  • CHIAVE DI CIFRATURA E PASSWORD CONDIVISE: il codice le porta con sé,
+    così il secondo dispositivo NON mostra più il triangolo giallo
+    "problema" e legge subito i dati.
+  • AVVIO SEMPLIFICATO: il token GitHub lo metti UNA SOLA VOLTA sul primo
+    dispositivo; sugli altri basta password + codice.
+
+----------------------------------------------------------------
+
 PRIMO ACCESSO
   Password iniziale: successo  → al primo login ti chiedo di cambiarla.
 
@@ -35,10 +48,16 @@ USARLO SU PC, TABLET E SMARTPHONE CON GLI STESSI DATI
   2. Crea un token GitHub con SOLO il permesso "gist"
      (link guidato dentro l'app).
   3. Incolla il token e premi "Collega e sincronizza": creo un archivio
-     PRIVATO e cifrato nel tuo GitHub.
-  4. Sugli altri dispositivi: stessa pagina, stessa password, stesso token
-     (e l'ID archivio che trovi in Impostazioni) → "Collega e sincronizza".
-  Da quel momento contatti, immobili, incroci e agenda sono identici ovunque.
+     PRIVATO e cifrato nel tuo GitHub, poi ti mostro subito il
+     CODICE DISPOSITIVO (copia con un tocco).
+  4. Sugli altri dispositivi: apri l'app, inserisci la password e
+     incolla il codice dispositivo (in Accesso, oppure in Impostazioni
+     → Sincronizzazione → "Usa codice"). Basta quello: non serve il token.
+  Da quel momento contatti, immobili, incroci e agenda sono identici ovunque,
+  e la password funziona uguale su tutti i dispositivi.
 
 I dati restano comunque salvati anche in locale su ogni dispositivo
 (backup automatico ogni 20 minuti, ripristinabile da Impostazioni).
+
+NOTA: il codice dispositivo contiene la chiave di cifratura — trattalo
+come la password. Se cambi password, rigenera il codice.

@@ -1,7 +1,8 @@
 'use strict';
-/* Suite di verifica ImmoCRM Pro v10.2 — esegue il codice REALE (sync.js + app.js).
+/* Suite di verifica ImmoCRM Pro v10.3 — esegue il codice REALE (sync.js + app.js).
    Copre: cifratura, merge multi-dispositivo, tombstone, provider Gist (server locale),
-   autenticazione PBKDF2 + lockout, tracciamento modifiche, incroci, backup. */
+   autenticazione PBKDF2 + lockout, login obbligatorio + codice dispositivo,
+   chiave e password condivise tra dispositivi, tracciamento modifiche, incroci, backup. */
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -151,17 +152,83 @@ async function testGistProvider() {
 /* 6) app.js in jsdom: boot, auth, incroci, backup                  */
 /* ---------------------------------------------------------------- */
 async function testConnectCode() {
-  section('5b. Codice di collegamento (round-trip)');
+  section('5b. Codice dispositivo v10.3 (round-trip)');
   await Sync.setConfig({ mode: 'gist', token: 'tk-abc', gistId: 'gistXYZ', encrypt: true, restUrl: '' });
-  const code = Sync.connectCode();
+  await Sync.unlockWithPassword('passD1', { keepSalt: true });
+  const passRec = { salt: 's-h', iter: 210000, hash: 'h-h' };
+  const code = await Sync.connectCode({ pass: passRec });
   ok(typeof code === 'string' && code.indexOf('IMMOCRM1.') === 0, 'connectCode genera stringa col prefisso');
+  const dec = Sync.decodeConnectCode(code);
+  ok(dec.token === 'tk-abc' && dec.gistId === 'gistXYZ' && dec.encrypt === true, 'decode: token+archivio+cifratura');
+  ok(!!dec.key && !!dec.salt, 'decode: contiene chiave e sale condivise');
+  ok(dec.pass && dec.pass.hash === 'h-h', 'decode: contiene hash password');
   await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+  await Sync.lockMaster();
   await Sync.applyConnectCode(code);
   const c = Sync.config();
   ok(c.mode === 'gist' && c.token === 'tk-abc' && c.gistId === 'gistXYZ' && c.encrypt === true, 'applyConnectCode ripristina mode/token/gist/cifratura');
+  ok(Sync.hasMasterKey(), 'applyConnectCode importa la chiave condivisa');
   const bad = await Sync.applyConnectCode('IMMOCRM1.!!!non-base64!!!').catch(e => e);
   ok(bad && /non valido/i.test((bad && bad.message) || ''), 'codice corrotto rifiutato');
   await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+  await Sync.lockMaster();
+}
+
+async function testMultiDevice() {
+  section('5d. Multi-dispositivo v10.3: chiave+password condivise, niente "problema"');
+  const { server, port } = await fakeGitHub();
+  const base = 'http://127.0.0.1:' + port;
+  const I = Sync._internal;
+
+  // --- Dispositivo 1: login, collegamento, push cifrato
+  await Sync.setConfig({ mode: 'gist', token: 'tk-A', gistId: '', apiBase: base, encrypt: true });
+  ok(await Sync.ensureMasterKey('MiaPass9x') === true, 'D1: chiave creata dalla password');
+  const dbA = { clienti: [{ id: 1, nome: 'Mario', updatedAt: 1 }], _ts: 10, _fieldTs: { settings: 10 }, settings: { agente: 'SD' } };
+  I.setHooks({ getDb: () => dbA, applyDb: d => { Object.assign(dbA, d); }, onStatus: () => {} });
+  const pushA = await Sync.push().catch(e => ({ error: e.message }));
+  ok(pushA && pushA.ok, 'D1: push cifrato ok', pushA && pushA.error);
+  const idA = Sync.config().gistId;
+  ok(!!idA, 'D1: archivio cloud creato');
+  const gh = { headers: { Authorization: 'Bearer tk-A' } };
+  const rawA = await (await fetch(base + '/gists/' + idA, gh)).json();
+  const envA = JSON.parse(rawA.files['immocrm.json'].content);
+  ok(envA.cipher && envA.data === null, 'D1: archivio cifrato (niente dati in chiaro)');
+  const code = await Sync.connectCode({ pass: { salt: 'sh', iter: 210000, hash: 'hh' } });
+  ok(!!code && code.indexOf('IMMOCRM1.') === 0, 'D1: codice dispositivo generato');
+
+  // --- Dispositivo 2: "pulito": applica il codice, pull senza prompt
+  await Sync.lockMaster();
+  ok(!Sync.hasMasterKey(), 'D2: parte senza chiave');
+  await Sync.applyConnectCode(code);
+  ok(Sync.hasMasterKey(), 'D2: chiave importata dal codice (condivisa)');
+  const dbB = { clienti: [], _ts: 0, _fieldTs: {} };
+  I.setHooks({ getDb: () => dbB, applyDb: d => { Object.assign(dbB, d); }, onStatus: () => {} });
+  const pullB = await Sync.pull().catch(e => ({ error: e.message }));
+  ok(!pullB.error && pullB.counts && pullB.counts.clienti === 1, 'D2: scarica i dati di D1 decifrati (niente prompt)', JSON.stringify(pullB));
+  ok(Sync.status().state !== 'error', 'D2: nessun errore → niente triangolo giallo');
+  dbB.clienti.push({ id: 2, nome: 'Anna', updatedAt: 200 });
+  dbB._ts = 200;
+  const pushB = await Sync.push().catch(e => ({ error: e.message }));
+  ok(pushB && pushB.ok, 'D2: push ok con la chiave condivisa', pushB && pushB.error);
+  const rawB = await (await fetch(base + '/gists/' + idA, gh)).json();
+  const envB = JSON.parse(rawB.files['immocrm.json'].content);
+  ok(envB.cipher && envB.cipher.salt === envA.cipher.salt, 'D2: stessa sale dopo il push (archivio stabile)');
+
+  // --- Dispositivo 1 riapre: perde la chiave in memoria, la ricava dalla password
+  I.setHooks({ getDb: () => dbA, applyDb: d => { Object.assign(dbA, d); }, onStatus: () => {} });
+  await Sync.lockMaster();
+  ok(await Sync.ensureMasterKey('MiaPass9x') === true, 'D1: chiave ricavata dalla password (sale condivisa nel cloud)');
+  const pullC = await Sync.pull().catch(e => ({ error: e.message }));
+  ok(!pullC.error && pullC.counts && pullC.counts.clienti === 2, 'D1: dopo D2 il merge ha 2 clienti', JSON.stringify(pullC));
+  // password sbagliata → NON crea una chiave spuria
+  await Sync.lockMaster();
+  ok(await Sync.ensureMasterKey('sbagliata') === false, 'password errata: chiave non creata');
+  ok(!Sync.hasMasterKey(), 'D1: senza chiave valida non ci sono dati accessibili');
+
+  I.setHooks({ getDb: null, applyDb: null, onStatus: null });
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '', apiBase: 'https://api.github.com' });
+  await Sync.lockMaster();
+  server.close();
 }
 const { JSDOM } = require('jsdom');
 const { IDBFactory } = require('fake-indexeddb');
@@ -256,6 +323,26 @@ async function testApp() {
   ok(/PBKDF2/.test(html), 'nota sicurezza PBKDF2 presente');
   ok(typeof win.syncCardHTML === 'function' && /Dispositivi collegati/.test(win.syncCardHTML()), 'syncCardHTML genera riga dispositivi');
 
+  // v10.3: login obbligatorio ad ogni avvio (niente apertura automatica)
+  win.localStorage.removeItem('immocrm_auth');
+  win.checkLoginRequired();
+  ok(win.document.getElementById('login-screen').style.display !== 'none', 'v10.3: ad ogni avvio la app chiede il login');
+  ok(win.document.getElementById('app-shell').style.display === 'none', 'v10.3: app non aperta senza login');
+
+  // v10.3: secondo dispositivo — login con codice (chiave+password condivise)
+  const saltD2 = nodeCrypto.randomBytes(16).toString('base64');
+  const keyD2 = await win.pbkdf2('Segreta123', saltD2, 210000);
+  const passD2 = { salt: saltD2, iter: 210000, hash: keyD2 };
+  const codeD2 = 'IMMOCRM1.' + Buffer.from(JSON.stringify({ v: 2, m: 'gist', g: 'gistNEW', t: 'tk-dev2', e: 1, r: '', a: 'http://127.0.0.1:1', s: saltD2, k: keyD2, h: passD2 })).toString('base64');
+  win.document.getElementById('login-pass').value = 'Segreta123';
+  win.document.getElementById('login-code').value = codeD2;
+  await win.doLogin();
+  ok(win.document.getElementById('login-screen').style.display === 'none', "D2: login con codice entra nell'app");
+  const authD2 = win.getAuth();
+  ok(authD2 && authD2.pass && authD2.pass.hash === passD2.hash, 'D2: hash password condiviso installato localmente');
+  ok(win.ImmoSync.hasMasterKey(), 'D2: chiave cifratura importata dal codice');
+  ok(win.ImmoSync.config().token === 'tk-dev2', 'D2: token cloud applicato dal codice');
+
   win.close();
 }
 
@@ -267,6 +354,7 @@ async function testApp() {
   try { await testTrackUpdatedAt(); } catch (e) { failed++; failures.push('track: ' + e.message); console.log('  ❌ track exception', e.message); }
   try { await testGistProvider(); } catch (e) { failed++; failures.push('gist: ' + e.message); console.log('  ❌ gist exception', e.message); }
   try { await testConnectCode(); } catch (e) { failed++; failures.push('connect: ' + e.message); console.log('  ❌ connect exception', e.message); }
+  try { await testMultiDevice(); } catch (e) { failed++; failures.push('multidev: ' + e.message); console.log('  ❌ multidev exception', e.message); }
   try { await testApp(); } catch (e) { failed++; failures.push('app: ' + e.message); console.log('  ❌ app exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);

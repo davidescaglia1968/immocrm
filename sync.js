@@ -547,6 +547,64 @@ function clearMaster() {
   return idbDel('keyring', 'master').then(function () { try { localStorage.removeItem(LS_KEYR); } catch (e) { /* noop */ } return true; });
 }
 
+/* v10.3 — chiavi condivise tra dispositivi: stessa password + stessa sale
+   (la sale viaggia nell'archivio cloud e nel codice dispositivo) = stessa
+   chiave su tutti i dispositivi. Così il secondo dispositivo decifra senza
+   errori e senza prompt. */
+function unlockMaster(password, opts) {
+  var o = opts || {};
+  var salt = o.salt ? b64dec(o.salt) : ((o.keepSalt && masterSalt) ? masterSalt : randBytes(16));
+  return deriveKey(password, b64enc(salt), KDF_ITER).then(function (key) {
+    if (!key) throw new SyncError(0, 'Cifratura non disponibile (serve una connessione HTTPS)');
+    return storeMaster(key, salt).then(function () {
+      set({ encrypted: true });
+      return true;
+    });
+  });
+}
+function rekeyFromEnv(password, env) {
+  if (!env || !env.cipher) return Promise.resolve(false);
+  return deriveKey(password, env.cipher.salt, env.cipher.iter).then(function (key) {
+    if (!key) return false;
+    return decryptJSON(env.cipher, key).then(function (data) {
+      if (!data) return false;
+      return storeMaster(key, b64dec(env.cipher.salt)).then(function () {
+        set({ encrypted: true, lastError: '', state: 'ok' });
+        return true;
+      });
+    });
+  });
+}
+function importMasterRaw(keyB64, saltB64) {
+  if (!keyB64 || !saltB64) return Promise.reject(new SyncError(0, 'Codice incompleto: manca la chiave di cifratura'));
+  return importKeyRaw(keyB64).then(function (k) {
+    if (!k) throw new SyncError(0, 'Chiave di cifratura non valida');
+    masterKey = k; masterSalt = b64dec(saltB64);
+    return storeMaster(k, masterSalt).then(function () {
+      set({ encrypted: true });
+      return true;
+    });
+  });
+}
+/* Assicura la chiave giusta per questo archivio partendo dalla password:
+   se l'archivio esiste la ricava da quello (sale condivisa nel cloud),
+   altrimenti ne crea una. Ritorna true/false, non lancia. */
+function ensureMasterKey(password) {
+  if (!password) return Promise.resolve(false);
+  if (masterKey) return Promise.resolve(true);
+  var p = provider();
+  function crea() {
+    return unlockMaster(password, { keepSalt: true }).then(function () { return true; }).catch(function () { return false; });
+  }
+  if (!p || cfg.mode === 'off') return crea();
+  return p.read().then(function (res) {
+    var env = null;
+    if (res && res.text) { try { env = JSON.parse(res.text); } catch (e) { env = null; } }
+    if (env && env.cipher) return rekeyFromEnv(password, env).catch(function () { return false; });
+    return crea();
+  }).catch(crea);
+}
+
 /* ---------- boot ---------- */
 function boot() {
   return openIDB().then(function () { return loadCfg(); })
@@ -783,24 +841,59 @@ var Sync = {
     lsSet(LS_META, m);
     return idbPut('meta', 'device', m).then(function () { return deviceName; });
   },
-  connectCode: function () {
-    if (cfg.mode === 'off' || !cfg.token) return null;
-    var o = { v: 1, m: cfg.mode, g: cfg.gistId, t: cfg.token, e: cfg.encrypt ? 1 : 0, r: cfg.restUrl };
-    return 'IMMOCRM1.' + b64enc(new TextEncoder().encode(JSON.stringify(o)));
+  /* v10.3 — codice dispositivo: porta su un altro dispositivo tutto quello
+     che serve per collegarsi — token, archivio, chiave di cifratura + sale
+     (condivise) e hash della password di accesso (mai la password stessa).
+     extra.pass = {salt,iter,hash} dell'utente che genera il codice. */
+  connectCode: function (extra) {
+    if (cfg.mode === 'off' || !cfg.token) return Promise.resolve(null);
+    var o = { v: 2, m: cfg.mode, g: cfg.gistId, t: cfg.token, e: cfg.encrypt ? 1 : 0, r: cfg.restUrl };
+    var chain = Promise.resolve();
+    if (cfg.encrypt && masterKey && masterSalt) {
+      o.s = b64enc(masterSalt);
+      chain = exportKeyRaw(masterKey).then(function (raw) { o.k = raw; });
+    }
+    var p = extra && extra.pass;
+    if (p && p.hash && p.salt) o.h = { salt: p.salt, iter: p.iter || KDF_ITER, hash: p.hash };
+    return chain.then(function () {
+      return 'IMMOCRM1.' + b64enc(new TextEncoder().encode(JSON.stringify(o)));
+    });
   },
-  applyConnectCode: function (str) {
+  /* Legge un codice senza effetti collaterali (schermata di accesso, test). */
+  decodeConnectCode: function (str) {
     try {
       var s = String(str || '').trim();
       var tag = 'IMMOCRM1.';
       var i = s.indexOf(tag);
       if (i >= 0) s = s.slice(i + tag.length);
       s = s.replace(/\s+/g, '');
+      if (!s) throw new Error('vuoto');
       var json = JSON.parse(new TextDecoder().decode(b64dec(s)));
-      var patch = { mode: json.m || 'gist', token: json.t || '', gistId: json.g || '', encrypt: json.e !== 0, restUrl: json.r || '', apiBase: json.a || cfg.apiBase };
-      if (!patch.token) return Promise.reject(new SyncError(0, 'Il codice non contiene un permesso valido'));
-      return this.setConfig(patch).then(function () { return clone(cfg); });
-    } catch (e) { return Promise.reject(new SyncError(0, 'Codice di collegamento non valido')); }
+      if (!json || typeof json !== 'object') throw new Error('non valido');
+      return {
+        mode: json.m || 'gist', token: json.t || '', gistId: json.g || '',
+        encrypt: json.e !== 0, restUrl: json.r || '', apiBase: json.a || '',
+        salt: json.s || '', key: json.k || '',
+        pass: (json.h && json.h.hash && json.h.salt) ? { salt: json.h.salt, iter: json.h.iter || KDF_ITER, hash: json.h.hash } : null
+      };
+    } catch (e) { throw new SyncError(0, 'Codice di collegamento non valido'); }
   },
+  /* Applica un codice: configura il cloud e, se presente, IMPORTA la chiave
+     di cifratura condivisa (stessa chiave su tutti i dispositivi). */
+  applyConnectCode: function (str) {
+    var d;
+    try { d = this.decodeConnectCode(str); } catch (e) { return Promise.reject(e); }
+    var patch = { mode: d.mode || 'gist', token: d.token || '', gistId: d.gistId || '', encrypt: d.encrypt !== 0, restUrl: d.restUrl || '', apiBase: d.apiBase || cfg.apiBase };
+    if (!patch.token) return Promise.reject(new SyncError(0, 'Il codice non contiene un permesso valido'));
+    return this.setConfig(patch).then(function () {
+      if (d.key && d.salt) return importMasterRaw(d.key, d.salt);
+      return false;
+    }).then(function () { return clone(cfg); });
+  },
+  /* Importa la chiave master già derivata (viene dal codice dispositivo). */
+  importMaster: importMasterRaw,
+  /* Prende in carico la chiave partendo dalla password (sale condivisa). */
+  ensureMasterKey: ensureMasterKey,
   setConfig: function (patch) {
     Object.keys(patch || {}).forEach(function (k) { if (k in cfg) cfg[k] = patch[k]; });
     if (!cfg.encrypt) { /* resta in chiaro */ }
@@ -810,30 +903,15 @@ var Sync = {
       return clone(cfg);
     });
   },
-  /* crea/collega la chiave di cifratura partendo dalla password dell'utente */
+  /* Crea/collega la chiave di cifratura partendo dalla password dell'utente.
+     opts.salt      → sale esplicito (quella condivisa nel codice dispositivo)
+     opts.keepSalt  → riusa la sale già presente qui: stessa password + stessa
+                      sale = stessa chiave su tutti i dispositivi (v10.3) */
   unlockWithPassword: function (password, opts) {
-    var keepSalt = opts && opts.keepSalt;
-    var salt = (keepSalt && masterSalt) ? masterSalt : randBytes(16);
-    return deriveKey(password, b64enc(salt), KDF_ITER).then(function (key) {
-      if (!key) throw new SyncError(0, 'Cifratura non disponibile (serve una connessione HTTPS)');
-      return storeMaster(key, salt).then(function () {
-        set({ encrypted: true });
-        return true;
-      });
-    });
+    return unlockMaster(password, opts);
   },
   rekeyFromEnvelope: function (password, env) {
-    if (!env || !env.cipher) return Promise.resolve(false);
-    return deriveKey(password, env.cipher.salt, env.cipher.iter).then(function (key) {
-      if (!key) return false;
-      return decryptJSON(env.cipher, key).then(function (data) {
-        if (!data) return false;
-        return storeMaster(key, b64dec(env.cipher.salt)).then(function () {
-          set({ encrypted: true, lastError: '', state: 'ok' });
-          return true;
-        });
-      });
-    });
+    return rekeyFromEnv(password, env);
   },
   lockMaster: clearMaster,
   historyList: historyList,
@@ -846,6 +924,13 @@ var Sync = {
   /* usato dai test: accesso alle parti interne senza esporle nell'UI */
   _internal: {
     cfg: function () { return cfg; },
+    setHooks: function (h) {
+      if (!h) return;
+      if (h.getDb !== undefined) hooks.getDb = h.getDb;
+      if (h.applyDb !== undefined) hooks.applyDb = h.applyDb;
+      if (h.onStatus !== undefined) hooks.onStatus = h.onStatus;
+      if (h.unlock !== undefined) hooks.unlock = h.unlock;
+    },
     setSnap: function (s) { snap = s; },
     getSnap: function () { return snap; },
     providers: providers,
