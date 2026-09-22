@@ -399,15 +399,30 @@ function ghMessage(status, body) {
   if (status === 422) return 'Dati rifiutati da GitHub: ' + (m || 'contenuto non valido');
   return m || ('Errore GitHub (' + status + ')');
 }
+var GH_TIMEOUT = 20000; // v10.4.1: ogni richiesta di rete ha una durata massima —
+// su rete mobile lenta/morta le finestre (recupero, cambio password, sync)
+// non restano più in attesa indefinita: errori chiari e bottoni riutilizzabili.
 function gistRequest(path, method, body) {
   var url = (cfg.apiBase || 'https://api.github.com').replace(/\/$/, '') + path;
-  return fetch(url, { method: method, headers: ghHeaders(), body: body ? JSON.stringify(body) : undefined })
-    .then(function (r) {
+  var opts = { method: method, headers: ghHeaders(), body: body ? JSON.stringify(body) : undefined };
+  var to = null;
+  if (typeof AbortController !== 'undefined') {
+    var ctrl = new AbortController();
+    to = setTimeout(function () { ctrl.abort(); }, GH_TIMEOUT);
+    opts.signal = ctrl.signal;
+  }
+  var wrap = function (fn) { return function (x) { if (to) clearTimeout(to); return fn(x); }; };
+  return fetch(url, opts)
+    .then(wrap(function (r) {
       return r.text().then(function (txt) {
         if (!r.ok) throw new SyncError(r.status, ghMessage(r.status, txt));
         return txt ? JSON.parse(txt) : null;
       });
-    });
+    }))
+    .catch(wrap(function (e) {
+      if (e && e.name === 'AbortError') throw new SyncError(0, 'Timeout: connessione a GitHub troppo lenta. Controlla la rete e riprova.');
+      throw e;
+    }));
 }
 var providers = {
   gist: {
@@ -603,6 +618,65 @@ function ensureMasterKey(password) {
     if (env && env.cipher) return rekeyFromEnv(password, env).catch(function () { return false; });
     return crea();
   }).catch(crea);
+}
+
+/* v10.4 — verifica LA PASSWORD contro l'archivio cloud: la chiave si ricava
+   da password + sale condivisa salvata nell'archivio. Ritorna
+   'ok' (decifra: adotta la chiave), 'badkey' (password sbagliata),
+   'noarchive' (nessun archivio configurato), 'error' (rete/cripto).
+   Non adotta mai una chiave sbagliata. */
+function unlockFromCloud(password) {
+  var p = provider();
+  if (!password || !p || cfg.mode === 'off') return Promise.resolve('noarchive');
+  return p.read().then(function (res) {
+    var env = null;
+    if (res && res.text) { try { env = JSON.parse(res.text); } catch (e) { env = null; } }
+    if (!env || !env.cipher) return 'noarchive';
+    return deriveKey(password, env.cipher.salt, env.cipher.iter).then(function (key) {
+      if (!key) throw new SyncError(0, 'Cifratura non disponibile (serve una connessione HTTPS)');
+      return decryptJSON(env.cipher, key).then(function (data) {
+        if (!data) return 'badkey';
+        return storeMaster(key, b64dec(env.cipher.salt)).then(function () {
+          set({ encrypted: true, lastError: '', state: 'ok' });
+          return 'ok';
+        });
+      });
+    });
+  }).catch(function () { return 'error'; });
+}
+
+/* v10.4 — adotta una NUOVA password di cifratura (cambio password o
+   recupero): mantiene la sale condivisa, ricifra l'archivio cloud con la
+   nuova chiave (se il vecchio archivio è ancora leggibile) e salva la
+   nuova chiave locale. Ritorna true/false. */
+function rekeyWithPassword(newPass) {
+  if (!newPass) return Promise.resolve(false);
+  var salt = masterSalt || randBytes(16);
+  return deriveKey(newPass, b64enc(salt), KDF_ITER).then(function (nkey) {
+    if (!nkey) throw new SyncError(0, 'Cifratura non disponibile (serve una connessione HTTPS)');
+    var p = provider();
+    function adotta() {
+      return storeMaster(nkey, salt).then(function () {
+        set({ encrypted: true, lastError: '', state: 'ok' });
+        return true;
+      });
+    }
+    if (!masterKey || !p || cfg.mode === 'off') return adotta();
+    return p.read().then(function (res) {
+      var env = null;
+      if (res && res.text) { try { env = JSON.parse(res.text); } catch (e) { env = null; } }
+      if (!env || !env.cipher) return adotta();
+      return decryptJSON(env.cipher, masterKey).then(function (data) {
+        if (!data) return adotta(); /* vecchio archivio non leggibile: riparte dai dati locali */
+        var base = { app: 'immocrm', v: 1, ts: now(), device: deviceId, deviceName: deviceName };
+        return encryptJSON(data, nkey).then(function (c) {
+          base.cipher = { alg: 'AES-GCM', kdf: 'PBKDF2-SHA256', salt: b64enc(salt), iter: KDF_ITER, iv: c.iv, ct: c.ct };
+          base.data = null;
+          return p.write(JSON.stringify(base)).then(adotta);
+        });
+      });
+    }).catch(adotta);
+  }).catch(function (e) { console.warn('rekeyWithPassword', e); return false; });
 }
 
 /* ---------- boot ---------- */
@@ -847,17 +921,16 @@ var Sync = {
      extra.pass = {salt,iter,hash} dell'utente che genera il codice. */
   connectCode: function (extra) {
     if (cfg.mode === 'off' || !cfg.token) return Promise.resolve(null);
-    var o = { v: 2, m: cfg.mode, g: cfg.gistId, t: cfg.token, e: cfg.encrypt ? 1 : 0, r: cfg.restUrl };
-    var chain = Promise.resolve();
-    if (cfg.encrypt && masterKey && masterSalt) {
-      o.s = b64enc(masterSalt);
-      chain = exportKeyRaw(masterKey).then(function (raw) { o.k = raw; });
-    }
+    /* v10.4 (formato v3): NON contiene più la chiave grezza (k) — con quella
+       sola il codice poteva decifrare il cloud senza password. La chiave si
+       ricava sempre da password + sale condivisa (s), quindi il codice è
+       solo il "permesso di collegamento": serve (con la password) una volta,
+       per collegare un dispositivo nuovo. */
+    var o = { v: 3, m: cfg.mode, g: cfg.gistId, t: cfg.token, e: cfg.encrypt ? 1 : 0, r: cfg.restUrl };
+    if (cfg.encrypt && masterSalt) o.s = b64enc(masterSalt);
     var p = extra && extra.pass;
     if (p && p.hash && p.salt) o.h = { salt: p.salt, iter: p.iter || KDF_ITER, hash: p.hash };
-    return chain.then(function () {
-      return 'IMMOCRM1.' + b64enc(new TextEncoder().encode(JSON.stringify(o)));
-    });
+    return Promise.resolve('IMMOCRM1.' + b64enc(new TextEncoder().encode(JSON.stringify(o))));
   },
   /* Legge un codice senza effetti collaterali (schermata di accesso, test). */
   decodeConnectCode: function (str) {
@@ -913,6 +986,10 @@ var Sync = {
   rekeyFromEnvelope: function (password, env) {
     return rekeyFromEnv(password, env);
   },
+  /* v10.4: verifica la password contro l'archivio cloud (sale condivisa). */
+  unlockFromCloud: unlockFromCloud,
+  /* v10.4: ricifra l'archivio con una nuova password (cambio/recupero). */
+  rekeyWithPassword: rekeyWithPassword,
   lockMaster: clearMaster,
   historyList: historyList,
   historyGet: historyGet,
@@ -948,7 +1025,8 @@ var Sync = {
     countsOf: countsOf,
     deviceLabel: deviceLabel,
     FILE_NAME: FILE_NAME,
-    KDF_ITER: KDF_ITER
+    KDF_ITER: KDF_ITER,
+    ghTimeout: function (ms) { if (ms) GH_TIMEOUT = ms; return GH_TIMEOUT; }
   }
 };
 

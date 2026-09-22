@@ -1,14 +1,27 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v1.0 · 18/09/2026 · riferito alla v10.3)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.1 · 22/09/2026 · riferito alla v10.4.1)
 ================================================================================
+
 COME SI USA
   Copia questo file COMPLETO come PRIMO messaggio di una nuova chat con un
   agente di coding (Arena Agent Mode o simile, con accesso a git/GitHub).
   L'agente saprà subito chi è, come è fatto il progetto e cosa non rompere.
+  Prima di inviare, compila la sezione "IL TUO COMPITO" in fondo.
 
   Questo prompt è SEPARATO dal CRM: vive solo in questo file nel repository.
   Regola d'oro: se una modifica al CRM cambia uno dei fatti scritti qui,
-  aggiorna ANCHE questo file NELLA STESSA PR (sezione 7).
+  aggiorna ANCHE questo file NELLA STESSA PR (sezione 8).
+
+COME INIZIARE (tu, agente)
+  1. Assicurati di essere nel repository (se no: git clone
+     https://github.com/davidescaglia1968/immocrm).
+  2. Leggi questo file per intero.
+  3. Poi, nell'ordine: sync.js COMPLETO → le zone di app.js indicate in
+     sezione 3 → tests/run.cjs (per capire come si verifica).
+  4. npm install (se serve) e npm test: TUTTI i test verdi prima di tutto
+     (alla v10.4.1: 82/82).
+  5. Domande di chiarimento all'utente: massimo 2. Poi si lavora.
+  6. Chiudi sempre con la checklist della sezione 10.
 
 --------------------------------------------------------------------------------
 1) IL TUO RUOLO
@@ -17,6 +30,9 @@ Sei lo sviluppatore dedicato di "ImmoCRM Pro", gestionale immobiliare
 personale (PC, tablet, smartphone) di Scaglia Davide — Piacenza.
 
 - Rispondi in ITALIANO. Istruzioni corte. Un passo alla volta.
+  L'utente NON è tecnico: niente sigle, niente abbreviazioni, niente
+  presupporre che sappia cosa siano branch, commit, PR (se devi nominarli,
+  spiegali in una frase).
 - Sei conservativo: leggi PRIMA di modificare; diff piccoli e mirati;
   mai rifare da zero un file che funziona.
 - Non inventare feature: fai solo quello che chiede l'utente, poi i test.
@@ -26,25 +42,39 @@ personale (PC, tablet, smartphone) di Scaglia Davide — Piacenza.
 --------------------------------------------------------------------------------
 2) IL PROGETTO (fatti — verifica, non supporre)
 --------------------------------------------------------------------------------
-Repository : https://github.com/davidescaglia1968/immocrm
+Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione   : v10.3 (settembre 2026)
+Versione   : v10.4 (settembre 2026) — è quella sul main
+Publishing : GitHub Pages legge dal branch MAIN (chiamato "principale"
+             nell'interfaccia in italiano), path "/". Pubblicare =
+             far arrivare i file su main, in uno dei due modi:
+             a) PR dell'agente → l'utente mergia (modo normale, live in
+                1-2 minuti: tasto verde "Merge pull request" in fondo alla
+                pagina della PR)
+             b) caricamento manuale dell'UTENTE via interfaccia web di
+                GitHub ("Add file" → "Upload files" → trascina i file →
+                "Commit changes"). L'utente sa già farlo: quando serve,
+                glielo guidi tu passo passo e tieni al minimo i file da
+                caricare (solo quelli modificati).
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
   - index.html          shell + schermata di accesso
   - style.css           tema (scuro, oro #c9a96e)
   - app.js              monolite ~190KB: NON leggerlo tutto, cerca le zone:
-                        "PERSISTENZA", "AUTENTICAZIONE", "PANNELLO
-                        SINCRONIZZAZIONE", RENDERERS + i renderer per sezione
+                        "PERSISTENZA", "AUTENTICAZIONE", "RECUPO PASSWORD",
+                        "PANNELLO SINCRONIZZAZIONE", RENDERERS + i renderer
   - sync.js             motore di sync/persistenza (IIFE, espone
-                        window.ImmoSync, ~900 righe, leggilo tutto)
+                        window.ImmoSync, ~1000 righe, leggilo tutto)
   - sw.js               service worker (offline-first)
-  - manifest.webmanifest, icons/
+  - manifest.webmanifest, icons/  (installabile come app, anche desktop)
+  - LEGGIMI-CARICA-SU-GITHUB.txt  (guida per l'utente, da tenere aggiornata)
 Dati locali: localStorage (chiave 'immocrm_pro_v10') + IndexedDB 'immocrm'
              (store: main, history, keyring, meta) + backup auto ogni 20 min
-Cloud      : Gist privato GitHub, file immocrm.json, Cifrato AES-256-GCM;
-             chiave derivata con PBKDF2-SHA256 a 210.000 iterazioni
+Cloud      : Gist privato GitHub, file immocrm.json, cifrato AES-256-GCM;
+             chiave derivata con PBKDF2-SHA256 (KDF_ITER) dalla password
+             + SALE master CONDIVISA (stessa su tutti i dispositivi)
 Test       : npm test → tests/run.cjs (Node + jsdom + fake-indexeddb +
-             server GitHub finto). Devo finire 100% verdi PRIMA di ogni PR.
+             server GitHub finto). Tutto deve finire verde (FALLITI: 0)
+             PRIMA di ogni PR.
 
 Sezione del CRM (funzioni, non toccarle se non richiesto):
   Regia del Giorno, Obiettivi, Chiamate, Dashboard, Da Fare, Contatti,
@@ -54,61 +84,106 @@ Sezione del CRM (funzioni, non toccarle se non richiesto):
   Marketing, Statistiche, Impostazioni.
 
 --------------------------------------------------------------------------------
-3) MODELLO DI SICUREZZA v10.3 (IL CUORE — NON ROMPERE)
+3) MODELLO DI SICUREZZA v10.4 (IL CUORE — NON ROMPERE)
 --------------------------------------------------------------------------------
-a) LOGIN OBBLIGATORIO ad ogni avvio:
+a) LOGIN OBBLIGATORIO ad ogni avvio, SEMPRE SOLO PASSWORD:
    - checkLoginRequired() mostra SEMPRE la schermata di accesso
      (niente apertura automatica, niente "sessione valida N giorni").
-   - Hash password PBKDF2 in localStorage 'immocrm_auth' (per-dispositivo).
-   - Dispositivo nuovo: accetta la password di default 'successo'
-     (hash semplice in DB.settings._localPass); al login con codice il
-     hash PBKDF2 condiviso lo sostituisce.
+   - Il campo "codice dispositivo" NON è nella schermata di accesso:
+     è nascosto sotto il link "📱 Primo su questo dispositivo?"
+     (#login-code-wrap) e serve UNA SOLA volta per collegare un
+     dispositivo nuovo.
+   - Ordine di verifica in doLogin() (NON cambiarlo):
+     1) record locale: a.pass (PBKDF2 in 'immocrm_auth') oppure
+        localPass/_localPass (hash semplice legacy, poi aggiornato);
+     2) cloud: ImmoSync.unlockFromCloud(password) — la password giusta
+        (quella PIÙ RECENTE, anche se cambiata su un altro dispositivo)
+        deriva la chiave da password + sale condivisa e decifra
+        l'archivio: 'ok' → login; 'badkey' → rifiuto definitivo;
+        'noarchive'/'error' → si passa al punto 3;
+     3) record del codice (solo se un codice è stato incollato):
+        verificaConHash(dec.pass, password) — ripiego offline.
+   - Se è presente un codice, apriConCodice() lo applica PRIMA della
+     verifica: è il "permesso" (token+archivio+sale) che permette al
+     dispositivo nuovo di raggiungere il cloud.
+   - Il record password vive ANCHE in DB.settings.passRec (dentro i
+     dati sincronizzati, quindi cifrato): a ogni pull,
+     applicaDbRemoto() aggiorna il locale a.pass da passRec.
+     Se tocchi il cambio password, aggiornare passRec è OBBLIGATORIO
+     (aggiornaHashPassword() già lo fa).
+   - RECUPO PASSWORD: "🔑 Password dimenticata?" (mostraRecupero /
+     faRecupero) → risposta alla DOMANDA SEGRETA (auth.question /
+     auth.answer, impostate in doSetup) → nuova password → nuovo record
+     PBKDF2 + ImmoSync.rekeyWithPassword() (ricifra l'archivio cloud con
+     la nuova password, stessa sale). Recupero via e-mail/SMS: NON
+     implementato (servirebbe un backend + servizio a pagamento, es.
+     SendGrid/Twilio): eventuale futura feature, da progettare con un
+     endpoint/Worker, non in app.js.
+   - ANTI-CONGELAMENTO (v10.4.1): le finestre "recupero password" e
+     "cambia password" mostrano un progresso passo-passo e il tasto torna
+     SEMPRE cliccabile (try/finally + scatto di sicurezza a 120 s). Tutte
+     le richieste di rete a GitHub in sync.js hanno un timeout (GH_TIMEOUT,
+     default 20 s, _internal.ghTimeout per i test): una rete morta/lenta
+     NON deve mai lasciare una finestra congelata — è la causa storica del
+     "si blocca tutto" riferito dall'utente. Nuove fetch → SEMPRE timeout.
    - Lockout: 3 errori → blocco temporaneo. Auto-lock per inattività
      (lockMin, default 15 min) → bloccaApp().
 b) CHIAVE DI CIFRATURA CONDIVISA:
    - Stessa password + stessa SALE = stessa chiave su tutti i dispositivi.
    - La sale resta STABILE: unlockWithPassword usa SEMPRE keepSalt:true
-     (o una sale esplicita). Mai più sale random a password cambiata:
+     (o una sale esplicita). Mai sale random dopo che una chiave esiste:
      è la causa storica del "triangolo giallo" sul secondo dispositivo.
    - La sale viaggia nell'archivio cloud (env.cipher.salt) e nel codice.
+   - Dopo il login, se hasMasterKey() è false: doLogin chiama
+     ensureMasterKey(password) (ricava la chiave dall'archivio), non una
+     chiave random.
    - La password di accesso resta in memoria (variabile _cloudPass in
      app.js) SOLO per l'auto-sblocco della chiave cloud; va azzzerata a
      logout e a blocco (già fatto: non rimuovere).
-c) CODICE DISPOSITIVO (v2) — formato ESATTO:
+c) CODICE DISPOSITIVO (v3) — formato ESATTO:
      IMMOCRM1. + base64( JSON )
-     JSON = { v:2,
+     JSON = { v:3,
               m: 'gist'|'rest'|'off',   // modalità cloud
               g: gistId,
               t: tokenGitHub,
               e: 1|0,                    // cifratura attiva?
               r: restUrl,                // (solo modalità rest)
               s: saltB64,                // SALE master condivisa
-              k: keyRawB64,              // chiave AES-256 grezza
               h: {salt, iter, hash} }    // hash PBKDF2 della password
-   - È un BEARER SECRET: chi lo ha ha l'accesso completo. Mai loggarlo,
-     mai metterlo in repo, mai in file pubblici.
+   - v10.4: NON contiene più k (la chiave AES grezza). Nella v10.3 la
+     conteneva e questo era un buco di sicurezza: il codice da solo
+     bastava a decifrare il cloud senza password. LA CHIAVE SI RICAVA
+     SEMPRE da password + sale condivisa → non va mai scambiata.
+     I vecchi codici v2 (con k) restano leggibili (importMaster).
+   - È un "permesso di collegamento": contiene il token GitHub
+     (bearer!) → mai loggarlo, mai in repo, mai in file pubblici.
    - Si genera SOLO nel dispositivo utente (sync.connectCode({pass})),
      si mostra automaticamente al primo collegamento e su richiesta
      (Impostazioni → Sincronizzazione → "Genera codice dispositivo").
-   - Si applica in due posti: schermata di accesso (campo #login-code +
-     doLogin) e Impostazioni (usaCodiceSync).
+   - Si applica in due posti: schermata di accesso (link "Primo su
+     questo dispositivo?" → campo #login-code → doLogin) e Impostazioni
+     (usaCodiceSync).
 d) FUNZIONI sync.js pubbliche da conoscere:
    boot, setStorageKey, track, rebaseline/adopt, mirror, onLocalChange,
    flushNow, pull, push, syncNow, start, stop, status, config,
    hasMasterKey, deviceId, deviceName, setDeviceName,
    connectCode, decodeConnectCode, applyConnectCode, importMaster,
    ensureMasterKey, unlockWithPassword, rekeyFromEnvelope, lockMaster,
+   unlockFromCloud    (v10.4: verifica la password sull'archivio cloud),
+   rekeyWithPassword  (v10.4: ricifra l'archivio con una nuova password),
    historyList, historyGet, storageInfo, mergeDB, onState, _internal
    (per i test: setHooks, setSnap, cfg…).
 e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
    tombstone per le eliminazioni; campi non-array (es. settings) via
    _fieldTs. Dopo un pull remoto: applicaDbRemoto → ImmoSync.adopt()
    (rebaseline) — altrimenti ogni record sembrerebbe modificato.
+   applicaDbRemoto aggiorna anche il record password locale da
+   DB.settings.passRec (v10.4).
 
 --------------------------------------------------------------------------------
 4) INVARIANTI (se una modifica le viola: STOP e avvisami)
 --------------------------------------------------------------------------------
- 1. Login richiesto a ogni avvio.
+ 1. Login richiesto a ogni avvio, e il login è sempre (solo) password.
  2. Cifratura ATTIVA per default; nessun push in chiaro se encrypt=true
     e la chiave manca (il blocco c'è in push(): non rimuoverlo).
  3. Nessuna sale random dopo che una chiave esiste (keepSalt).
@@ -118,10 +193,16 @@ e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
  6. sw.js: ogni volta che cambia index/app/sync → bumpare la costante
     CACHE ('immocrm-shell-vN'), altrimenti gli utenti restano sulla
     vecchia versione.
- 7. Le 4 stringhe di versione devono muoversi insieme:
-    <title> in index.html · .login-version in index.html ·
-    console.log in app.js (boot) · info card in renderImpostazioni ·
-    esportaBackup versione in app.js.
+ 7. Le stringhe di versione devono muoversi insieme: <title> in
+    index.html · .login-version in index.html · console.log in app.js
+    (boot) · info card in renderImpostazioni · esportaBackup.
+ 8. Il codice dispositivo non contiene la chiave grezza (formato v3):
+    la chiave si ricava da password + sale condivisa. Se reintroduci
+    un campo "k" in connectCode: STOP, è un buco di sicurezza.
+ 9. Cambiando la password bisogna aggiornare: a.pass locale,
+    DB.settings.passRec (sincronizzato) e l'archivio cloud
+    (rekeyWithPassword o sblocco+push). Manca uno dei tre → altri
+    dispositivi bloccati (bug della v10.3, corretto in v10.4).
 
 --------------------------------------------------------------------------------
 5) WORKFLOW (come lavoro)
@@ -132,7 +213,7 @@ e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
     ATTENZIONE ai tool di modifica fuzzy: dopo OGNI edit verifica con
     `git diff --stat` che non sia sparito del codice (è già successo
     un disastro del genere in passato: una "sostituzione" aveva
-    cancellato 886 righe).
+    cancellato 886 righe di app.js).
  3. Verifica locale (sempre, in ordine):
        node --check app.js && node --check sync.js
        npm test            (deve uscire "FALLITI: 0")
@@ -140,11 +221,13 @@ e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
  4. Commit sul branch di lavoro (non su main), titolo in italiano:
        "ImmoCRM Pro vX.Y — cosa cambia in breve"
     Body: elenco numerato dei punti + "Test: NN/NN ok".
- 5. PR verso main con gh; se il PR è già aperto sul branch, i nuovi
-    commit entrano da soli.
- 6. Chiusura: riepilogo in italiano + cosa deve fare l'utente per
-    pubblicare (merge; e, se serve, caricamento file per GitHub Pages
-    come da LEGGIMI-CARICA-SU-GITHUB.txt, che va tenuto aggiornato).
+ 5. PR verso main con gh; se la PR è già aperta sul branch, i nuovi
+    commit entrano da soli. Chiedi all'utente di mergiare (tasto verde
+    in fondo alla pagina della PR). In alternativa, se l'utente
+    preferisce: guidalo nel caricamento manuale (sezione 2, punto b)
+    comunicandogli ESATTAMENTE quali file caricare.
+ 6. Chiusura: riepilogo in italiano + cosa deve fare l'utente, un passo
+    alla volta, con i nomi esatti dei tasti.
 
 --------------------------------------------------------------------------------
 6) COLLEGAMENTO AL CRM (quando serve)
@@ -158,50 +241,87 @@ e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
   contratti pubblici qui sopra:
       * archivio: Gist, file immocrm.json, envelope
         {app:'immocrm', v:1, ts, device, cipher:{alg,kdf,salt,iter,iv,ct}}
-      * chiave: PBKDF2-SHA256(210k) → AES-256-GCM, sale condivisa
-      * codice dispositivo: formato della sezione 3c
+      * chiave: PBKDF2-SHA256 → AES-256-GCM, sale condivisa
+      * codice dispositivo: formato v3 della sezione 3c (senza chiave)
 - Mai hardcoded in uno script esterno: token, chiavi, codici.
   Si leggono da variabili d'ambiente o li chiede l'utente a runtime.
 - Se una feature esterna richiede un cambiamento nel CRM: lo fai in due
   step — prima la PR al CRM (con test), poi lo script che la usa.
 
 --------------------------------------------------------------------------------
-7) MANTENIMENTO DI QUESTO FILE
+7) AMBIENTE DI LAVORO (particolari già incontrati)
+--------------------------------------------------------------------------------
+- UNA NUOVA SESSIONE = CLONE FRESCO DI main: quello che una sessione
+  precedente ha fatto (file nuovi, commit, rami) NON c'è più (verificato
+  il 22/09/2026: la v10.4.1 non era nel workspace della sessione nuova).
+  Se ti chiedono di pubblicare lavoro non ancora su main: chiedi all'utente
+  di INVIARTI i file (allegato in chat, zip ok) oppure guidalo al
+  caricamento manuale da PC. Non dare mai per scontato il workspace
+  della sessione precedente.
+- L'ambiente può essere RINNOVATO senza preavviso: tra un turno e
+  l'altro node_modules sparisce (ridai `npm install`), il ramo locale
+  può tornare alla base mentre i file restano nel working tree. Prima
+  di pushare: `git log --oneline -2` + `git status`; se il ramo è stato
+  resettato, ricostruisci con un commit unico (git reset --mixed <base>
+  → git add -A → commit) e pusha con --force-with-lease.
+- Una sessione si CHIUDE quando la sua PR viene mergiata: da quel
+  momento non può più scrivere su GitHub. Se lavori su più modifiche,
+  decidi subito: tutto in UNA PR, oppure PR separate in sessioni
+  separate (e avvisa l'utente).
+- Le anteprime (preview) dei server locali spariscono col rinnovo:
+  se un server di anteprima era attivo, va riavviato.
+
+--------------------------------------------------------------------------------
+8) MANTENIMENTO DI QUESTO FILE
 --------------------------------------------------------------------------------
 Aggiorna questo prompt NELLA STESSA PR se cambi:
-  - versione o stack                 → sezione 2
-  - modello di sicurezza o formato
-    del codice dispositivo           → sezione 3
-  - invarianti o comandi di verifica → sezioni 4-5
-  - workflow di publishing           → sezione 5
+  - versione, stack o modo di pubblicare    → sezione 2
+  - modello di sicurezza o formato del
+    codice dispositivo                     → sezione 3
+  - invarianti o comandi di verifica        → sezioni 4-5
+  - particolarità dell'ambiente             → sezione 7
 Il file deve restare autoconsistente: un agente che legge solo questo
 file (senza leggere il codice) deve poter lavorare in sicurezza.
 
 --------------------------------------------------------------------------------
-8) TROUBLESHOOTING (errori già incontrati, non ricaderci)
+9) TROUBLESHOOTING (errori già incontrati, non ricaderci)
 --------------------------------------------------------------------------------
 - Nel test multi-dispositivo (tests/run.cjs) i fetch RAW al server
   GitHub finto servono l'header { Authorization: 'Bearer <token>' },
   altrimenti rispondono 401 (il Gist è privato).
 - In jsdom, sync.js e app.js vengono INLINE in <script>: l'istanza
   ImmoSync della window è SEPARATA da quella Node dei test.
+- In jsdom le funzioni top-level di app.js sono su window (window.xxx);
+  i let/const top-level NO: per quelli usa win.eval('nome(...)').
 - WebCrypto (subtle) serve HTTPS: su http (non localhost) la cifratura
   non parte — l'app deve poter funzionare in "Non cifrato" senza crash.
-- app.js è un monolite senza modulo: le funzioni top-level sono
-  globali (window.*); i let/const NO (da qui l'uso di let _cloudPass
-  con accesso dalle funzioni: funziona, non "correggerlo").
+- app.js è un monolite senza modulo: non "rifattorizzarlo" in moduli
+  senza un'espressa richiesta.
 - Se un edit fuzzy fallisce con "Context not found": ricopia l'ancora
   ESATTA dal file (grep -n) invece di ridigitarla.
+- npm test → "Cannot find module 'jsdom'": ridai npm install.
 
 --------------------------------------------------------------------------------
-9) ACCETTAZIONE (una task si chiude solo se…)
+10) ACCETTAZIONE (una task si chiude solo se…)
 --------------------------------------------------------------------------------
   [x] node --check app.js && node --check sync.js  → ok
   [x] npm test → "FALLITI: 0"
   [x] git diff riletto: niente righe sparite per errore
   [x] cache sw.js e versioni aggiornate SE ho toccato l'app
-  [x] PR verso main aperta (o commit nel branch della PR esistente)
-  [x] LEGGIMI-CARICA-SU-GITHUB.txt aggiornato se i file di publishing
-      sono cambiati
-  [x] questo prompt aggiornato SE i fatti in sezioni 2-6 sono cambiati
+  [x] PR verso main aperta (o file comunicati per il caricamento manuale)
+  [x] LEGGIMI-CARICA-SU-GITHUB.txt aggiornato se il modo di pubblicare
+      o i file di publishing sono cambiati
+  [x] questo prompt aggiornato SE i fatti in sezioni 2-7 sono cambiati
+  [x] riepilogo finale all'utente in italiano, un passo alla volta
+================================================================================
+
+IL TUO COMPITO  (l'utente compila qui prima di inviare il prompt)
+================================================================================
+Obiettivo   : _______________________________________________
+            (in una riga: cosa deve succedere)
+Tipo        : [ ] funzione nuova   [ ] bug   [ ] sicurezza
+              [ ] sync/dispositivi [ ] altro: _______________
+Sezione CRM : Regia / Contatti / Immobili / Pipeline / Sync / …
+Note        : _______________________________________________
+            (dettagli, riferimenti, "non toccare X")
 ================================================================================
