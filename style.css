@@ -13,7 +13,10 @@ code{font-family:var(--font-mono);font-size:11px;color:var(--gold)}
 .login-field{margin-bottom:11px}.login-field label{display:block;font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;text-transform:uppercase}
 .login-field input{width:100%;background:var(--bg5);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-size:13px}
 .login-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0a0c14;border-radius:8px;padding:13px;font-size:14px;font-weight:700;margin-top:8px}
-.login-err{color:var(--red);font-size:12px;text-align:center;margin-top:8px;min-height:16px}.login-hint{font-size:10px;color:var(--text2);text-align:center;margin-top:14px}
+.login-err{color:var(--red);font-size:12px;text-align:center;margin-top:8px;min-height:16px}.login-err.ok{color:var(--green);font-weight:600}.login-hint{font-size:10px;color:var(--text2);text-align:center;margin-top:14px}
+.login-links{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}
+.login-link{background:none;border:1px solid var(--border2);color:var(--text2);font-size:11px;padding:7px 12px;border-radius:999px;cursor:pointer;transition:all .15s}
+.login-link:hover{color:var(--gold);border-color:var(--gold)}
 .setup-banner{text-align:center;margin-bottom:16px;font-size:12px;color:var(--text2)}.setup-banner strong{color:var(--gold)}
 #sidebar{width:var(--sidebar-w);background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden;transition:width var(--t-med)}
 #sidebar.collapsed{width:60px}

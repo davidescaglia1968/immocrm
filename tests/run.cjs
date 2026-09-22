@@ -1,8 +1,10 @@
 'use strict';
-/* Suite di verifica ImmoCRM Pro v10.3 — esegue il codice REALE (sync.js + app.js).
+/* Suite di verifica ImmoCRM Pro v10.4 — esegue il codice REALE (sync.js + app.js).
    Copre: cifratura, merge multi-dispositivo, tombstone, provider Gist (server locale),
-   autenticazione PBKDF2 + lockout, login obbligatorio + codice dispositivo,
-   chiave e password condivise tra dispositivi, tracciamento modifiche, incroci, backup. */
+   autenticazione PBKDF2 + lockout, login obbligatorio (solo password),
+   codice dispositivo v3 (senza chiave grezza, solo "permesso" per il 1° collegamento),
+   cambio password che apre su tutti i dispositivi, recupero password (domanda segreta),
+   tracciamento modifiche, incroci, backup. */
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -148,11 +150,29 @@ async function testGistProvider() {
   server.close();
 }
 
+/* v10.4.1: rete morta/lenta → la richiesta scade, niente attesa infinita */
+async function testNetworkTimeout() {
+  section('5c. v10.4.1: timeout rete (mai più finestre "congelate")');
+  const server = http.createServer(() => { /* accetta e non risponde mai */ });
+  await new Promise(r => server.listen(0, '127.0.0.1', r));
+  const base = 'http://127.0.0.1:' + server.address().port;
+  await Sync.setConfig({ mode: 'gist', token: 'tk-t', gistId: 'gistT', apiBase: base, encrypt: false });
+  I.ghTimeout(250);
+  const t0 = Date.now();
+  const res = await Sync.pull().catch(e => ({ error: e.message }));
+  const dt = Date.now() - t0;
+  ok(res && /Timeout/i.test(res.error || ''), 'rete morta: errore chiaro dopo il timeout (niente attesa infinita)', JSON.stringify(res));
+  ok(dt >= 200 && dt < 5000, 'timeout rispettato nei tempi (250ms nel test)', 'dt=' + dt);
+  I.ghTimeout(20000);
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '', apiBase: 'https://api.github.com' });
+  server.close();
+}
+
 /* ---------------------------------------------------------------- */
 /* 6) app.js in jsdom: boot, auth, incroci, backup                  */
 /* ---------------------------------------------------------------- */
 async function testConnectCode() {
-  section('5b. Codice dispositivo v10.3 (round-trip)');
+  section('5b. Codice dispositivo v10.4 (round-trip, nessuna chiave grezza)');
   await Sync.setConfig({ mode: 'gist', token: 'tk-abc', gistId: 'gistXYZ', encrypt: true, restUrl: '' });
   await Sync.unlockWithPassword('passD1', { keepSalt: true });
   const passRec = { salt: 's-h', iter: 210000, hash: 'h-h' };
@@ -160,14 +180,14 @@ async function testConnectCode() {
   ok(typeof code === 'string' && code.indexOf('IMMOCRM1.') === 0, 'connectCode genera stringa col prefisso');
   const dec = Sync.decodeConnectCode(code);
   ok(dec.token === 'tk-abc' && dec.gistId === 'gistXYZ' && dec.encrypt === true, 'decode: token+archivio+cifratura');
-  ok(!!dec.key && !!dec.salt, 'decode: contiene chiave e sale condivise');
+  ok(!dec.key && !!dec.salt, 'decode: NON contiene la chiave grezza (sicurezza v10.4), sale condivisa presente');
   ok(dec.pass && dec.pass.hash === 'h-h', 'decode: contiene hash password');
   await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
   await Sync.lockMaster();
   await Sync.applyConnectCode(code);
   const c = Sync.config();
   ok(c.mode === 'gist' && c.token === 'tk-abc' && c.gistId === 'gistXYZ' && c.encrypt === true, 'applyConnectCode ripristina mode/token/gist/cifratura');
-  ok(Sync.hasMasterKey(), 'applyConnectCode importa la chiave condivisa');
+  ok(!Sync.hasMasterKey(), 'applyConnectCode (v3): NON importa chiavi — si ricavano da password+sale');
   const bad = await Sync.applyConnectCode('IMMOCRM1.!!!non-base64!!!').catch(e => e);
   ok(bad && /non valido/i.test((bad && bad.message) || ''), 'codice corrotto rifiutato');
   await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
@@ -196,11 +216,13 @@ async function testMultiDevice() {
   const code = await Sync.connectCode({ pass: { salt: 'sh', iter: 210000, hash: 'hh' } });
   ok(!!code && code.indexOf('IMMOCRM1.') === 0, 'D1: codice dispositivo generato');
 
-  // --- Dispositivo 2: "pulito": applica il codice, pull senza prompt
+  // --- Dispositivo 2: "pulito": applica il codice (il "permesso") e ricava
+  //     la chiave da password + sale condivisa → pull senza prompt
   await Sync.lockMaster();
   ok(!Sync.hasMasterKey(), 'D2: parte senza chiave');
   await Sync.applyConnectCode(code);
-  ok(Sync.hasMasterKey(), 'D2: chiave importata dal codice (condivisa)');
+  ok(!Sync.hasMasterKey(), 'D2: il codice v10.4 non contiene la chiave grezza');
+  ok(await Sync.ensureMasterKey('MiaPass9x') === true, 'D2: chiave ricavata da password + sale condivisa (cloud)');
   const dbB = { clienti: [], _ts: 0, _fieldTs: {} };
   I.setHooks({ getDb: () => dbB, applyDb: d => { Object.assign(dbB, d); }, onStatus: () => {} });
   const pullB = await Sync.pull().catch(e => ({ error: e.message }));
@@ -228,6 +250,36 @@ async function testMultiDevice() {
   I.setHooks({ getDb: null, applyDb: null, onStatus: null });
   await Sync.setConfig({ mode: 'off', token: '', gistId: '', apiBase: 'https://api.github.com' });
   await Sync.lockMaster();
+  server.close();
+}
+
+async function testPasswordChange() {
+  section('5e. v10.4: cambio password → apre su tutti i dispositivi (niente codice)');
+  const { server, port } = await fakeGitHub();
+  const base = 'http://127.0.0.1:' + port;
+  const I = Sync._internal;
+  // D1: collegamento con la password vecchia
+  await Sync.setConfig({ mode: 'gist', token: 'tk-P', gistId: '', apiBase: base, encrypt: true });
+  ok(await Sync.ensureMasterKey('PassVecchia1') === true, 'D1: chiave creata (password vecchia)');
+  const dbA = { clienti: [{ id: 1, nome: 'Mario', updatedAt: 1 }], _ts: 10, _fieldTs: {}, settings: { agente: 'SD' } };
+  I.setHooks({ getDb: () => dbA, applyDb: d => { Object.assign(dbA, d); }, onStatus: () => {} });
+  const pushA = await Sync.push().catch(e => ({ error: e.message }));
+  ok(pushA && pushA.ok, 'D1: push cifrato ok', pushA && pushA.error);
+  // D1 cambia password → l'archivio cloud viene ricifrato (stessa sale condivisa)
+  ok(await Sync.rekeyWithPassword('PassNuova2') === true, 'D1: rekey con la nuova password ok');
+  // D2 (pulito): la vecchia password NON apre più; la nuova apre
+  await Sync.lockMaster();
+  ok(await Sync.unlockFromCloud('PassVecchia1') === 'badkey', 'D2: password vecchia → badkey (non apre)');
+  ok(!Sync.hasMasterKey(), 'D2: con la password vecchia nessuna chiave spuria');
+  ok(await Sync.unlockFromCloud('PassNuova2') === 'ok', 'D2: NUOVA password apre l\'archivio (niente codice)');
+  ok(Sync.hasMasterKey(), 'D2: chiave adottata dalla nuova password');
+  const pullD2 = await Sync.pull().catch(e => ({ error: e.message }));
+  ok(!pullD2.error && pullD2.counts && pullD2.counts.clienti === 1, 'D2: scarica i dati con la nuova password', JSON.stringify(pullD2));
+  // nessun archivio → 'noarchive'
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+  await Sync.lockMaster();
+  ok(await Sync.unlockFromCloud('qualsiasi') === 'noarchive', 'senza archivio → noarchive');
+  I.setHooks({ getDb: null, applyDb: null, onStatus: null });
   server.close();
 }
 const { JSDOM } = require('jsdom');
@@ -321,6 +373,7 @@ async function testApp() {
   const html = win.document.getElementById('content').innerHTML;
   ok(/Sincronizzazione multi/.test(html), 'panello Sincronizzazione presente in Impostazioni');
   ok(/PBKDF2/.test(html), 'nota sicurezza PBKDF2 presente');
+  ok(!!win.document.getElementById('sec-chg-btn'), 'v10.4.1: tasto "Cambia password" presente (con stato di attività, anti-congelamento)');
   ok(typeof win.syncCardHTML === 'function' && /Dispositivi collegati/.test(win.syncCardHTML()), 'syncCardHTML genera riga dispositivi');
 
   // v10.3: login obbligatorio ad ogni avvio (niente apertura automatica)
@@ -343,6 +396,30 @@ async function testApp() {
   ok(win.ImmoSync.hasMasterKey(), 'D2: chiave cifratura importata dal codice');
   ok(win.ImmoSync.config().token === 'tk-dev2', 'D2: token cloud applicato dal codice');
 
+  // v10.4: login screen — codice nascosto di default, sezione "Password dimenticata?"
+  win.localStorage.removeItem('immocrm_auth');
+  win.checkLoginRequired();
+  ok(win.document.getElementById('login-code-wrap').style.display === 'none', 'v10.4: codice dispositivo nascosto (solo "Primo su questo dispositivo?")');
+  ok(!!win.document.getElementById('login-recupero') && win.document.getElementById('login-recupero').style.display === 'none', 'v10.4: sezione "Password dimenticata?" presente (nascosta)');
+  // flusso recupero completo: risposta sbagliata rifiutata, risposta giusta → nuova password
+  const saltR = nodeCrypto.randomBytes(16).toString('base64');
+  const hashR = await win.pbkdf2('VecchiaPass9', saltR, 210000);
+  win.saveAuth({ loggedIn: false, pass: { salt: saltR, iter: 210000, hash: hashR }, question: 'Che città sei di?', answer: win.eval('hashSimple("piacenza")'), ts: Date.now() });
+  win.checkLoginRequired();
+  win.mostraRecupero();
+  ok(win.document.getElementById('login-recupero').style.display === 'block', 'recupero: il form si apre');
+  win.document.getElementById('rec-an').value = 'sbagliata';
+  win.document.getElementById('rec-p1').value = 'NuovaPass123';
+  win.document.getElementById('rec-p2').value = 'NuovaPass123';
+  await win.faRecupero();
+  ok(/Risposta errata/.test(win.document.getElementById('rec-err').textContent), 'recupero: risposta segreta sbagliata rifiutata');
+  win.document.getElementById('rec-an').value = 'Piacenza';
+  await win.faRecupero();
+  ok(/Password recuperata/.test(win.document.getElementById('rec-err').textContent), 'recupero: risposta giusta → success');
+  ok(await win.verificaPasswordLocale('NuovaPass123') === true, 'recupero: la nuova password funziona');
+  ok(await win.verificaPasswordLocale('VecchiaPass9') === false, 'recupero: la vecchia password non vale più');
+  ok(win.document.getElementById('rec-btn').disabled === false && /Recupera la password/.test(win.document.getElementById('rec-btn').textContent), 'recupero: a fine operazione il tasto torna attivo (mai più "bloccato")');
+
   win.close();
 }
 
@@ -353,8 +430,10 @@ async function testApp() {
   try { await testTombstones(); } catch (e) { failed++; failures.push('tombstone: ' + e.message); console.log('  ❌ tombstone exception', e.message); }
   try { await testTrackUpdatedAt(); } catch (e) { failed++; failures.push('track: ' + e.message); console.log('  ❌ track exception', e.message); }
   try { await testGistProvider(); } catch (e) { failed++; failures.push('gist: ' + e.message); console.log('  ❌ gist exception', e.message); }
+  try { await testNetworkTimeout(); } catch (e) { failed++; failures.push('timeout: ' + e.message); console.log('  ❌ timeout exception', e.message); }
   try { await testConnectCode(); } catch (e) { failed++; failures.push('connect: ' + e.message); console.log('  ❌ connect exception', e.message); }
   try { await testMultiDevice(); } catch (e) { failed++; failures.push('multidev: ' + e.message); console.log('  ❌ multidev exception', e.message); }
+  try { await testPasswordChange(); } catch (e) { failed++; failures.push('passchg: ' + e.message); console.log('  ❌ passchg exception', e.message); }
   try { await testApp(); } catch (e) { failed++; failures.push('app: ' + e.message); console.log('  ❌ app exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);

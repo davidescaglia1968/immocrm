@@ -123,6 +123,8 @@ if(window.ImmoSync&&BOOT_DB){DB=BOOT_DB;BOOT_DB=null}
 else{try{const r=localStorage.getItem(KEY);if(r)DB=JSON.parse(r)}catch(e){DB={}}}
 _dbReady=true;initDB()}
 function applicaDbRemoto(d){if(!d||typeof d!=='object')return;DB=d;window.DB=DB;_dbReady=true;
+// v10.4: tiene aggiornato il record password locale da quello sincronizzato
+if(d.settings&&d.settings.passRec&&d.settings.passRec.hash){const _a=getAuth()||{};const _pr=d.settings.passRec;if(!(_a.pass&&_a.pass.hash===_pr.hash&&_a.pass.salt===_pr.salt)){_a.pass={salt:_pr.salt,iter:_pr.iter,hash:_pr.hash};delete _a.localPass;saveAuth(_a)}}
 if(window.ImmoSync){ImmoSync.adopt(DB);try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){}ImmoSync.mirror(DB)}
 initDB();
 if(appAttiva()){render();updateBadges()}
@@ -141,12 +143,25 @@ const bits=await su.deriveBits({name:'PBKDF2',salt:_b64d(salt),iterations:iter||
 return _b64e(bits)}
 async function aggiornaHashPassword(pass){const a=getAuth()||{};const salt=nuovoSale();const h=await pbkdf2(pass,salt,PBK_ITER);if(!h)return false;
 a.pass={salt:salt,iter:PBK_ITER,hash:h};delete a.localPass;saveAuth(a);
-if(DB.settings){delete DB.settings._localPass;DB.settings._passV2=true}
+// v10.4: il record vive anche nei dati sincronizzati (dentro la cifratura):
+// gli altri dispositivi lo ricevono al prossimo pull e il login resta valido
+if(DB.settings){delete DB.settings._localPass;DB.settings._passV2=true;DB.settings.passRec={salt:salt,iter:PBK_ITER,hash:h}}
 return true}
-async function verificaPassword(pass){const a=getAuth()||{};
-if(a.pass&&a.pass.hash&&a.pass.salt){const h=await pbkdf2(pass,a.pass.salt,a.pass.iter);return !!h&&h===a.pass.hash}
+/* v10.4: verifica SOLO sui record locali (per il flusso di login) */
+async function verificaPasswordLocale(pass){const a=getAuth()||{};
+if(a.pass&&a.pass.hash&&a.pass.salt){const h=await pbkdf2(pass,a.pass.salt,a.pass.iter);if(!!h&&h===a.pass.hash)return true}
 const lp=a.localPass||(DB.settings||{})._localPass;
 if(lp&&hashSimple(pass)===lp){await aggiornaHashPassword(pass);return true}
+return false}
+async function verificaPassword(pass){const a=getAuth()||{};
+if(a.pass&&a.pass.hash&&a.pass.salt){const h=await pbkdf2(pass,a.pass.salt,a.pass.iter);if(!!h&&h===a.pass.hash)return true}
+const lp=a.localPass||(DB.settings||{})._localPass;
+if(lp&&hashSimple(pass)===lp){await aggiornaHashPassword(pass);return true}
+// v10.4: record locale assente o stantio (es. password cambiata su un altro
+// dispositivo) → si prova la password sull'archivio cloud: la sale condivisa
+// è salvata nell'archivio, quindi la password PIÙ RECENTE apre su tutti i
+// dispositivi, senza codici e senza ricominciare.
+if(window.ImmoSync&&ImmoSync.unlockFromCloud){const r=await ImmoSync.unlockFromCloud(pass);if(r==='ok')return true}
 return false}
 function loginBloccato(){const a=getAuth()||{};return !!(a.fails&&a.fails.until&&a.fails.until>Date.now())}
 function registraFallimento(){const a=getAuth()||{};const n=((a.fails&&a.fails.n)||0)+1;const minuti=Math.min(15,Math.pow(2,n-1)*0.5);a.fails={n:n,until:n>=3?Date.now()+minuti*60000:0};saveAuth(a);return n}
@@ -168,7 +183,7 @@ async function doLogin(){const inp=document.getElementById('login-pass');const p
 const btn=document.getElementById('login-btn');
 if(loginBloccato()){e.textContent='⏳ Troppi tentativi errati: riprova fra '+minutiBlocco()+' min';return}
 if(!p){e.textContent='Inserisci la password';return}
-const codeEl=document.getElementById('login-code');const code=(codeEl&&codeEl.value||'').trim();
+const codeEl=document.getElementById('login-code');const code=(codeEl&&codeEl.value||'').trim();const _ga=getAuth()||{};const haAuth=!!(_ga.pass&&_ga.pass.hash)||!!_ga.localPass;
 let dec=null;
 if(code){
 try{dec=window.ImmoSync?ImmoSync.decodeConnectCode(code):null;
@@ -176,17 +191,36 @@ if(!dec)throw new Error('nessun dec');
 }catch(err){e.textContent='❌ Codice dispositivo non valido';return}
 }
 if(btn){btn.disabled=true;btn.textContent='Verifico…'}
-let ok=false;
-try{ok=dec&&dec.pass?await verificaConHash(dec.pass,p):await verificaPassword(p)}catch(err){ok=false}
+/* v10.4: verifica in 3 tempi: (1) record locale, (2) cloud — la password
+   più recente vince sempre, anche se cambiata su un altro dispositivo,
+   (3) record del codice (solo se offline/nessun archivio). Il codice è
+   applicato PRIMA della verifica: è il "permesso" che permette al
+   dispositivo nuovo di raggiungere il cloud. */
+let ok=false,via='';
+try{
+if(dec){_cloudPass=p;try{await apriConCodice(dec)}catch(err){console.warn('codice',err)}}
+if(await verificaPasswordLocale(p)){ok=true;via='local'}
+else if(window.ImmoSync&&ImmoSync.unlockFromCloud){
+const r=await ImmoSync.unlockFromCloud(p);
+if(r==='ok'){ok=true;via='cloud'}
+else if((r==='noarchive'||r==='error')&&dec&&dec.pass&&await verificaConHash(dec.pass,p)){ok=true;via='code'}
+}
+else if(dec&&dec.pass&&await verificaConHash(dec.pass,p)){ok=true;via='code'}
+}catch(err){ok=false}
 if(btn){btn.disabled=false;btn.textContent='🔐 Accedi'}
-if(!ok){const n=registraFallimento();e.textContent='❌ Password errata'+(n>=3?' — accesso sospeso per '+minutiBlocco()+' min':'');inp.value='';return}
+if(!ok){const n=registraFallimento();let msg;
+if(code)msg='❌ Password errata (o codice non corrispondente)';
+else if(!haAuth)msg='❌ Dispositivo non riconosciuto: al primo utilizzo usa "Primo su questo dispositivo?" in basso';
+else msg='❌ Password errata — l\'hai dimenticata? Usa "Password dimenticata?" in basso';
+e.textContent=msg+(n>=3?' — accesso sospeso per '+minutiBlocco()+' min':'');inp.value='';return}
 azzeraFallimenti();
 const a=getAuth()||{};a.loggedIn=true;a.nome=a.nome||(DB.settings||{}).agente||'Utente';a.ts=Date.now();
-if(dec&&dec.pass){a.pass=dec.pass;delete a.localPass}
+if(via==='code'&&dec&&dec.pass){a.pass=dec.pass;delete a.localPass}
 saveAuth(a);
-if(dec&&window.ImmoSync){try{await apriConCodice(dec)}catch(err){console.warn('codice',err)}}
 _cloudPass=p;
-if(!(window.ImmoSync&&ImmoSync.hasMasterKey()))await sbloccoCloud(p);
+// v10.4: se la chiave non c'è, la ricavo dall'archivio cloud (sale condivisa)
+// invece di crearne una nuova a caso — la password giusta apre sempre.
+if(window.ImmoSync&&!ImmoSync.hasMasterKey()){try{await ImmoSync.ensureMasterKey(p)}catch(e){console.warn('master',e)}}
 entraApp();
 const n=document.getElementById('lock-note');if(n)n.style.display='none';
 if(codeEl)codeEl.value='';
@@ -208,6 +242,51 @@ document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="chg
 <div class="modal-footer">${forza?'':'<button class="btn btn-ghost" onclick="chiudiCambioPassword()">Più tardi</button>'}<button class="btn btn-primary" onclick="salvaCambioPassword()">Salva password</button></div></div></div>`);
 setTimeout(()=>{const el=document.getElementById('cp-1');if(el)el.focus()},80)}
 function chiudiCambioPassword(){const m=document.getElementById('chg-pass-modal');if(m)m.remove()}
+/* ---------- v10.4: recupero password (domanda segreta, senza server) ---------- */
+function toggleCodeWrap(){const w=document.getElementById('login-code-wrap');if(w)w.style.display=(w.style.display==='none'?'block':'none')}
+function mostraRecupero(){const f=document.getElementById('login-form');if(f)f.style.display='block';const b=document.getElementById('login-recupero');if(b)b.style.display='block';const w=document.getElementById('login-code-wrap');if(w)w.style.display='none';
+const a=getAuth()||{};const q=a.question||'';const rq=document.getElementById('rec-q');if(rq)rq.textContent=q?('Domanda segreta: '+q):'Domanda segreta';
+const note=document.getElementById('rec-note');if(note)note.style.display=q?'none':'block';
+['rec-an','rec-p1','rec-p2'].forEach(id=>{const i=document.getElementById(id);if(i)i.value=''});
+const e=document.getElementById('rec-err');if(e){e.textContent='';e.classList.remove('ok')}
+const an=document.getElementById('rec-an');if(an)an.focus()}
+function chiudiRecupero(){const b=document.getElementById('login-recupero');if(b)b.style.display='none';const f=document.getElementById('login-form');if(f)f.style.display='block'}
+/* v10.4.1: recupero senza mai "gelo": progresso visivo su ogni passo,
+   scatto di sicurezza dopo 2 minuti e tasto che torna SEMPRE cliccabile. */
+async function faRecupero(){const a=getAuth()||{};const e=document.getElementById('rec-err');e.textContent='';e.classList.remove('ok');
+if(!a.question){e.textContent='Su questo dispositivo non c\'è una domanda segreta: il recupero non è possibile.';return}
+if(loginBloccato()){e.textContent='⏳ Troppi tentativi errati: riprova fra '+minutiBlocco()+' min';return}
+const anEl=document.getElementById('rec-an'),p1El=document.getElementById('rec-p1'),p2El=document.getElementById('rec-p2');
+if(!anEl||!p1El||!p2El){e.textContent='⚠️ Finestra non caricata: chiudi e riapri "Password dimenticata?".';return}
+const an=(anEl.value||'').trim().toLowerCase();
+if(!an){e.textContent='Rispondi alla domanda segreta.';return}
+if(hashSimple(an)!==a.answer){const n=registraFallimento();e.textContent='Risposta errata'+(n>=3?' — riprova fra '+minutiBlocco()+' min':'');return}
+const p1=p1El.value,p2=p2El.value;
+if(p1.length<6){e.textContent='Nuova password: minimo 6 caratteri.';return}
+if(p1!==p2){e.textContent='Le due password non coincidono.';return}
+const btn=document.getElementById('rec-btn');
+const setBtn=(t,dis)=>{if(btn){btn.disabled=!!dis;btn.textContent=t}};
+const sicurezza=setTimeout(()=>{setBtn('🔑 Recupera la password',false);e.textContent='⏳ Operazione troppo lunga (rete?): il pulsante è di nuovo attivo, riprova.';},120000);
+try{
+azzeraFallimenti();
+setBtn('🔄 Passo 1 di 3: verifico…',true);
+const salt=nuovoSale();
+setBtn('🔄 Passo 2 di 3: cifro la nuova password…',true);
+const h=await pbkdf2(p1,salt,PBK_ITER);
+if(!h){e.textContent='Cifratura non disponibile: serve una connessione HTTPS.';return}
+a.pass={salt:salt,iter:PBK_ITER,hash:h};delete a.localPass;a.ts=Date.now();saveAuth(a);
+if(DB.settings){delete DB.settings._localPass;DB.settings._passV2=true;DB.settings.passRec={salt:salt,iter:PBK_ITER,hash:h}}
+try{save()}catch(err){}
+_cloudPass=p1;
+e.textContent='✅ Password aggiornata su questo dispositivo.';e.classList.add('ok');
+// l'archivio cloud viene ricifrato con la nuova password (stessa sale condivisa)
+if(window.ImmoSync&&ImmoSync.rekeyWithPassword){setBtn('🔄 Passo 3 di 3: aggiorno il cloud…',true);
+try{await ImmoSync.rekeyWithPassword(p1)}catch(err){console.warn('rekey',err)}
+if(window.ImmoSync.syncNow){try{ImmoSync.syncNow('password')}catch(err){}}}
+e.textContent='✅ Password recuperata! Ora accedi con la nuova password.';e.classList.add('ok');
+setTimeout(chiudiRecupero,2600);
+}catch(err){console.warn('recupero',err);e.textContent='⚠️ Errore: '+(err&&err.message?err.message:'riprova')+'. Il pulsante è di nuovo attivo.';e.classList.remove('ok')}
+finally{clearTimeout(sicurezza);setBtn('🔑 Recupera la password',false)}}
 async function salvaCambioPassword(){const p1=document.getElementById('cp-1').value,p2=document.getElementById('cp-2').value,e=document.getElementById('cp-err');
 if(p1.length<6){e.textContent='Minimo 6 caratteri';return}if(p1!==p2){e.textContent='Non coincidono';return}
 if(!(await aggiornaHashPassword(p1))){e.textContent='Il browser non supporta la cifratura: serve HTTPS';return}
@@ -918,7 +997,7 @@ c.innerHTML=`<div class="stack">
 <div class="form-group"><label class="form-label">Password attuale</label><input type="password" id="sec-cur" class="inp"></div>
 <div class="form-group"><label class="form-label">Nuova</label><input type="password" id="sec-n1" class="inp"></div>
 <div class="form-group"><label class="form-label">Conferma</label><input type="password" id="sec-n2" class="inp"></div></div>
-<button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="cambiaPassword()">🔑 Cambia password</button>
+<button class="btn btn-primary btn-sm" id="sec-chg-btn" style="margin-top:10px" onclick="cambiaPassword()">🔑 Cambia password</button>
 <div class="form-row-3" style="margin-top:14px">
 <div class="form-group"><label class="form-label">Blocco automatico dopo</label><select class="inp" onchange="impostaAutoLock(this.value)">${[['5','5 minuti'],['15','15 minuti'],['30','30 minuti'],['60','1 ora'],['120','2 ore'],['0','Mai']].map(o=>`<option value="${o[0]}" ${String((getAuth()||{}).lockMin===undefined?15:(getAuth()||{}).lockMin)===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
 <div class="form-group"><label class="form-label">App sul telefono</label><button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="installaApp()">📲 Installa come app</button></div></div>
@@ -929,15 +1008,19 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.3</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
-async function cambiaPassword(){const cur=document.getElementById('sec-cur').value,n1=document.getElementById('sec-n1').value,n2=document.getElementById('sec-n2').value;
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.4.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+async function cambiaPassword(){const btn=document.getElementById('sec-chg-btn');
+if(btn){btn.disabled=true;btn.textContent='🔄 Cambio in corso…'}
+try{
+const cur=document.getElementById('sec-cur').value,n1=document.getElementById('sec-n1').value,n2=document.getElementById('sec-n2').value;
 if(!(await verificaPassword(cur))){showToast('Password attuale errata','error');return}
 if(n1.length<6){showToast('Minimo 6 caratteri','error');return}if(n1!==n2){showToast('Non coincidono','error');return}
 if(!(await aggiornaHashPassword(n1))){showToast('Cifratura non disponibile (serve HTTPS)','error');return}
 const a=getAuth()||{};a.ts=Date.now();saveAuth(a);save();await sbloccoCloud(n1);
 if(window.ImmoSync)ImmoSync.syncNow('password');
 ['sec-cur','sec-n1','sec-n2'].forEach(id=>{const el=document.getElementById(id);if(el)el.value=''});
-showToast('🔑 Password aggiornata e dati ricifrati')}
+showToast('🔑 Password aggiornata e dati ricifrati')
+}finally{if(btn){btn.disabled=false;btn.textContent='🔑 Cambia password'}}}
 function impostaAutoLock(v){const a=getAuth()||{};a.lockMin=parseInt(v,10)||0;saveAuth(a);armaLock();showToast('Blocco automatico: '+(a.lockMin?a.lockMin+' minuti':'disattivato'))}
 function resetTotale(){if(!confirm('Eliminare TUTTI i dati da questo dispositivo? Se la sincronizzazione cloud è attiva i dati torneranno al prossimo sync.'))return;
 if(!confirm('Conferma definitiva: cancello archivio locale, storico e sessione.'))return;
@@ -1092,7 +1175,7 @@ impostazioni:renderImpostazioni
 if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot();BOOT_DB=b?b.db:null}catch(e){console.warn('boot sync',e)}}
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.3','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.4.1','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
