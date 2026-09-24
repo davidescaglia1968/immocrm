@@ -1069,22 +1069,22 @@ ${syncCardHTML()}
 <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
 <button class="btn btn-primary btn-sm" id="protect-check-btn" onclick="verificaProtezione()">🧪 Verifica copie</button>
 <button class="btn btn-gold btn-sm" onclick="creaCopiaEmergenza()">💾 Doppia copia ora</button>
-<button class="btn btn-ghost btn-sm" onclick="attivaPersistenza()">🔒 Attiva salvataggio persistente</button></div>
-<div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, "ottimizzatori", ripristino del browser) i dati restano al sicuro: chiediamo al browser il <b>salvataggio persistente</b> (StorageManager.persist), teniamo una <b>doppia copia locale di emergenza</b> oltre a IndexedDB e allo storico dei backup, e — se il cloud è attivo — tutto è anche lì, cifrato. Un dubbio? Premi <b>🧪 Verifica copie</b>: controllo tutto in 2 secondi.</div></div>
+<button class="btn btn-gold btn-sm" onclick="attivaPersistenza()">🔒 Blocca i dati su questo dispositivo</button></div>
+<div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, programmi di pulizia, ripristino del browser) i dati restano: tengo <b>due copie di riserva</b> su questo dispositivo, più lo storico dei salvataggi. Se il telefono è collegato, c'è anche una copia al sicuro nel cloud. Un dubbio? Premi <b>🧪 Verifica copie</b>.</div></div>
 <div class="grid2"><div class="card"><div class="card-title" style="margin-bottom:10px">💾 Backup</div><div class="stack" style="gap:8px">
 <button class="btn btn-gold" onclick="esportaBackup()">📥 Esporta backup</button>
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.0</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
 const ts=t=>t?new Date(t).toLocaleString('it-IT'):'—';
-el.innerHTML=`<div class="prot-row"><span>🔒 Salvataggio persistente (browser)</span><b>${r.persisted?'<span style="color:var(--green)">attivo ✅</span>':(r.persistSupported?'<span style="color:var(--gold)">da attivare — premi il tasto sotto</span>':'<span class="text-muted">non supportato da questo browser</span>')}</b></div>
+el.innerHTML=`<div class="prot-row"><span>🔒 Protezione dalle pulizie</span><b>${r.persisted?'<span style="color:var(--green)">attiva ✅</span>':(r.persistSupported?'<span style="color:var(--gold)">non ancora attiva — installa l’app</span>':'<span class="text-muted">non disponibile</span>')}</b></div>
 <div class="prot-row"><span>💾 Copia principale</span><b>${r.mainLS&&r.mainLS.ok?'✅ '+ts(r.mainLS.ts):'❌ assente'}</b></div>
-<div class="prot-row"><span>🗄️ IndexedDB · storico (${r.storico} snapshot)</span><b>${r.idb&&r.idb.ok?'✅ '+ts(r.idb.ts):'—'}</b></div>
-<div class="prot-row"><span>🆘 Doppia copia di emergenza</span><b>${(r.emgA&&r.emgA.ok)&&(r.emgB&&r.emgB.ok)?'✅ A+B · '+ts(Math.max(r.emgA.ts,r.emgB.ts)):((r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok))?'⚠️ una sola copia':'<span style="color:var(--red)">❌ assente</span>'}</b></div>`;
+<div class="prot-row"><span>🗄️ Archivio di lavoro · ${r.storico} salvataggi</span><b>${r.idb&&r.idb.ok?'✅ '+ts(r.idb.ts):'—'}</b></div>
+<div class="prot-row"><span>🆘 Due copie di riserva</span><b>${(r.emgA&&r.emgA.ok)&&(r.emgB&&r.emgB.ok)?'✅ entrambe · '+ts(Math.max(r.emgA.ts,r.emgB.ts)):((r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok))?'⚠️ una sola copia':'<span style="color:var(--red)">❌ assenti</span>'}</b></div>`;
 }catch(e){el.textContent='Verifica non disponibile: '+(e&&e.message?e.message:e)}}
 async function verificaProtezione(){
 if(!window.ImmoSync){showToast('Motore di salvataggio non disponibile','error');return}
@@ -1094,15 +1094,15 @@ const riga=(ok,t,d)=>`<div class="prot-row"><span>${ok?'✅':'❌'} ${t}</span><
 const emgOk=(r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok);
 document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="protect-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>🧪 Verifica protezione dati</h2>
 <p class="text-muted text-sm" style="margin-bottom:10px">Controllo di tutte le copie salvate su questo dispositivo.</p>
-${riga(!!(r.mainLS&&r.mainLS.ok),'Copia principale (localStorage)',ts(r.mainLS&&r.mainLS.ts))}
-${riga(!!(r.idb&&r.idb.ok),'Copia IndexedDB',ts(r.idb&&r.idb.ts))}
+${riga(!!(r.mainLS&&r.mainLS.ok),'Copia principale',ts(r.mainLS&&r.mainLS.ts))}
+${riga(!!(r.idb&&r.idb.ok),'Archivio di lavoro',ts(r.idb&&r.idb.ts))}
 ${riga(!!(r.emgA&&r.emgA.ok),'Copia di emergenza A',ts(r.emgA&&r.emgA.ts))}
 ${riga(!!(r.emgB&&r.emgB.ok),'Copia di emergenza B',ts(r.emgB&&r.emgB.ts))}
-${riga(r.storico>0,'Storico backup automatici',(r.storico||0)+' snapshot')}
-${riga(!!r.persisted,'Salvataggio persistente (StorageManager.persist)',r.persisted?'attivo':(r.persistSupported?'da attivare':'non supportato'))}
+${riga(r.storico>0,'Storico dei salvataggi',(r.storico||0)+' copie')}
+${riga(!!r.persisted,'Salvataggio persistente',r.persisted?'attivo':(r.persistSupported?'non ancora attivo — installa l’app':'non disponibile'))}
 ${riga(!!r.quota,'Spazio nel browser',(r.usage?(r.usage/1048576).toFixed(1)+' MB usati · ':'')+(r.quota?(r.quota/1048576).toFixed(0)+' MB disponibili':'n/d'))}
 ${!(r.mainLS&&r.mainLS.ok)&&emgOk?`<div class="alert orange">⚠️ La copia principale non c'è più (pulizia del PC?): posso ripristinare tutto subito dalla copia di emergenza.</div><button class="btn btn-gold" onclick="ripristinaDaEmergenza()">🆘 Ripristina dalla copia di emergenza</button>`:''}
-<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>${!r.persisted&&r.persistSupported?'<button class="btn btn-primary" onclick="closeModal();attivaPersistenza()">🔒 Attiva persistente</button>':''}</div></div></div>`)}
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>${!r.persisted&&r.persistSupported?'<button class="btn btn-primary" onclick="closeModal();attivaPersistenza()">🔒 Blocca i dati</button>':''}</div></div></div>`)}
 async function ripristinaDaEmergenza(){
 if(!window.ImmoSync){showToast('Non disponibile','error');return}
 const list=ImmoSync.emergencyRead();
@@ -1117,12 +1117,28 @@ save();
 const ok=ImmoSync.emergencyWrite(DB,true);
 showToast(ok?'🆘 Doppia copia di emergenza creata (A+B)':'⚠️ Copia non riuscita: spazio del browser esaurito?',ok?'success':'error');
 caricaProtezione()}
+function appInstallata(){try{return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true}catch(e){return false}}
 async function attivaPersistenza(){
 if(!window.ImmoSync){showToast('Non disponibile','error');return}
 const ok=await ImmoSync.requestPersist();
-window._persisted=ok;
-showToast(ok?'🔒 Salvataggio persistente attivo: il browser non cancellerà i dati con le pulizie automatiche':'ℹ️ Persistenza non concessa adesso: la doppia copia di emergenza protegge comunque i dati',ok?'success':'info',5500);
-caricaProtezione()}
+window._persisted=!!ok;
+if(ok){showToast('🔒 Dati bloccati su questo dispositivo: le pulizie del browser non li cancellano','success',5500);caricaProtezione();return}
+mostraAiutoPersistenza();caricaProtezione()}
+function mostraAiutoPersistenza(){
+const installata=appInstallata();
+const old=document.getElementById('persist-help-modal');if(old)old.remove();
+const corpo=installata
+?`<p>L'app è installata, ma questo browser non ha ancora promesso di tenere i dati per sempre.</p><p>Le <b>due copie di riserva</b> ci sono già su questo dispositivo. Per una copia tua, che non dipende dal browser, premi <b>Esporta backup</b>: scarichi un file nella cartella Download.</p>`
+:`<p><b>Per tenere i dati anche se pulisci il computer, installa l'app.</b></p><p>Finché la usi solo nella finestra del browser, Windows può cancellarli con le pulizie. Premi <b>Installa l'app</b>: dopo, la tratta come un programma e i dati restano.</p><p>Intanto le due copie di riserva proteggono i dati. Non perdi niente adesso.</p>`;
+const btn=installata
+?`<button class="btn btn-gold" onclick="closeModal();esportaBackup()">📥 Esporta backup</button>`
+:`<button class="btn btn-gold" onclick="installaEBloccaDati()">📲 Installa l'app e blocca i dati</button>`;
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="persist-help-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>Dati non ancora bloccati</h2>${corpo}<div class="modal-footer">${btn}<button class="btn btn-ghost" onclick="closeModal()">Più tardi</button></div></div></div>`)}
+async function installaEBloccaDati(){
+closeModal();
+if(window._deferredPrompt){await installaApp();showToast('Apri ImmoCRM dall’icona sul desktop o sul telefono: lì i dati restano bloccati.','info',7000);return}
+if(appInstallata()&&window.ImmoSync){const ok=await ImmoSync.requestPersist();window._persisted=!!ok;if(ok){showToast('🔒 Dati bloccati su questo dispositivo','success',5500);caricaProtezione();return}mostraAiutoPersistenza();return}
+await installaApp()}
 async function cambiaPassword(){const btn=document.getElementById('sec-chg-btn');
 if(btn){btn.disabled=true;btn.textContent='🔄 Cambio in corso…'}
 try{
@@ -1144,7 +1160,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.0',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.1',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1165,7 +1181,7 @@ return `<div class="card" id="sync-card"><div class="row" style="justify-content
 <div><div class="card-title" style="font-size:15px">☁️ Sincronizzazione multi‑dispositivo</div>
 <div class="card-subtitle">Gli stessi dati (contatti, immobili, incroci, agenda) su PC, tablet e smartphone</div></div>
 <div class="row-tight"><span class="badge" style="background:${st[2]}22;color:${st[2]}">${st[0]} ${st[1]}</span>${off?'<span class="badge badge-orange">📴 offline</span>':''}</div></div>
-${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 12px">⚠️ <b>Questo dispositivo non è ancora collegato al cloud.</b> I dati restano salvati solo qui (con doppia copia di emergenza). Per averli anche su telefono e tablet: inserisci il <b>Token GitHub</b> e premi <b>🔗 Collega e sincronizza</b>, oppure incolla il <b>codice dispositivo</b> generato da un tuo dispositivo già collegato.</div>`:''}
+${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 12px">⚠️ <b>Questo dispositivo non è ancora collegato al cloud.</b> I dati sono salvi solo qui, con due copie di riserva. Per averli anche sul telefono: apri <b>Come collego il telefono</b> qui sotto e segui i passi. Alla fine compare un QR: sul telefono scrivi solo la password.</div>`:''}
 <div class="form-row-3">
 <div class="form-group"><label class="form-label">Dove salvo i dati</label><select class="inp" id="sy-mode">
 <option value="off" ${cfg.mode==='off'?'selected':''}>💾 Solo questo dispositivo</option>
@@ -1197,16 +1213,16 @@ ${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 1
 <div class="grid2">
 <div><div class="card-title" style="margin-bottom:8px">📱 Dispositivi collegati</div>${dispRows}</div>
 <div><div class="card-title" style="margin-bottom:8px">🕓 Backup automatici su questo dispositivo</div><div id="sy-hist" class="text-sm text-muted">Carico lo storico…</div></div></div>
-<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--gold)">📖 Come si attiva in 3 minuti (guida)</summary>
+<details id="sy-guida" style="margin-top:12px" ${!collegato?'open':''}><summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:700">📖 Come collego il telefono</summary>
 <ol style="font-size:12px;line-height:1.9;padding-left:18px;margin-top:8px;color:var(--text2)">
-<li>Apri <a href="https://github.com/settings/tokens/new?description=ImmoCRM&scopes=gist" target="_blank" rel="noopener" style="color:var(--primary)">github.com/settings/tokens/new</a> (devi essere collegato col tuo account GitHub).</li>
-<li>Note: <code>ImmoCRM</code> · Scadenza: quella che preferisci · Spunta <b>solo</b> la casella <code>gist</code> · <b>Generate token</b>.</li>
-<li>Copia il token (inizia con <code>ghp_</code> o <code>github_pat_</code>) e incollalo qui sopra nel campo <b>Token GitHub</b>.</li>
-<li>Lascia vuoto <b>ID archivio</b> e premi <b>Collega e sincronizza</b>: creo io un Gist <b>privato</b> nel tuo GitHub, ci salvo i dati cifrati e ti mostro subito il <b>codice dispositivo</b>.</li>
-<li>Su tablet e smartphone apri lo stesso indirizzo, inserisci la tua <b>password</b> e incolla il <b>codice dispositivo</b> (in Accesso, o qui sotto in «Usa codice»). Niente token da ricopiare.</li>
-<li>Da lì in poi tutto è automatico: salvi su un dispositivo e in pochi secondi i dati (e gli incroci) arrivano sugli altri. Password e chiave di cifratura sono le stesse su tutti i tuoi dispositivi.</li>
+<li>Sul computer, entra nel tuo account GitHub e apri <a href="https://github.com/settings/tokens/new?description=ImmoCRM&scopes=gist" target="_blank" rel="noopener" style="color:var(--primary)">questa pagina</a>: crea il permesso per l'archivio privato.</li>
+<li>Nome: <code>ImmoCRM</code>. Scadenza: quella che preferisci. Spunta <b>solo</b> la casella <code>gist</code> (nient'altro). Poi premi <b>Generate token</b>.</li>
+<li>Copia il codice che compare (inizia con <code>ghp_</code> o <code>github_pat_</code>) e incollalo qui sopra in <b>Token GitHub</b>.</li>
+<li>Lascia vuoto <b>ID archivio</b>. Nel nome del dispositivo scrivi <b>PC</b>. Premi <b>Collega e sincronizza</b>.</li>
+<li>Compare il QR. Sul telefono apri la fotocamera e inquadralo: l'app si apre e chiede <b>solo la password</b>. Poi installa l'icona sulla schermata Home.</li>
+<li>Da lì in poi è automatico: salvi su un dispositivo e in pochi secondi i dati arrivano sull'altro. La password è la stessa ovunque.</li>
 </ol>
-<div class="alert gold">🔐 Il token resta solo su questo dispositivo. Con il permesso <code>gist</code> può scrivere unicamente i tuoi archivi personali: non tocca repository né account. Se un giorno vuoi revocarlo: github.com → Settings → Developer settings → Tokens → Delete.<br>Il <b>codice dispositivo</b> contiene anche la chiave di cifratura: chi lo possiede può leggere i dati. Non condividerlo; se lo perdi, rigenerane uno dalle Impostazioni.</div>
+<div class="alert gold">🔐 Quel permesso resta solo su questo computer e può scrivere solo il tuo archivio personale. Il QR è un permesso di collegamento: da solo non apre i dati, serve sempre la password. Non mandarlo su WhatsApp.</div>
 </details></div>`}
 function syncMsg(t,col){const e=document.getElementById('sy-msg');if(e){e.textContent=t;e.style.color=col||'var(--text2)'}}
 /* ---------- v10.5: QR per collegare il telefono in un'inquadratura ---------- */
@@ -1268,7 +1284,7 @@ let c=null;
 try{c=await ImmoSync.connectCode({pass:(getAuth()||{}).pass||null})}catch(e){c=null}
 if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e sincronizza")','var(--red)');return}
 document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>📱 Codice dispositivo</h2>
-<p class="text-muted text-sm" style="margin-bottom:10px">Sullo smartphone o tablet: apri ImmoCRM, inserisci la tua <b>password</b> e incolla questo codice (in Accesso, o in Impostazioni → Sincronizzazione → "Usa codice"). Con lui basta il codice: <b>niente token</b>. Il codice contiene anche la chiave di cifratura: trattalo come la password e non condividerlo. Se cambi password o archivio, rigeneralo.</p>
+<p class="text-muted text-sm" style="margin-bottom:10px">Sullo smartphone o tablet: apri ImmoCRM, inserisci la tua <b>password</b> e incolla questo codice (in Accesso, o in Impostazioni → Sincronizzazione → "Usa codice"). Con lui basta il codice: <b>niente token</b>. Da solo non apre i dati: serve sempre la password. Non condividerlo e non mandarlo su WhatsApp. Se cambi password o archivio, rigeneralo.</p>
 <textarea class="inp" id="codice-sync" rows="5" readonly onclick="this.select()" style="font-size:11px;word-break:break-all">${c}</textarea>
 <div style="text-align:center;margin-top:12px">${qrBoxHTML(qrAppUrl(c),180)}<div class="text-sm text-muted" style="margin-top:6px">📱 v10.5: in alternativa inquadra il QR col telefono — il codice arriva già inserito, servirà solo la password.</div></div>
 <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaCodiceSync()">📋 Copia</button></div></div></div>`)}
@@ -1324,11 +1340,12 @@ if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot(
 /* v10.5: protezione da pulizia del PC — chiediamo SUBITO il salvataggio
    persistente al browser e segnaliamo l'eventuale ripristino d'emergenza. */
 try{if(window.ImmoSync&&ImmoSync.requestPersist)ImmoSync.requestPersist().then(p=>{window._persisted=!!p;
-if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem('immocrm_persist_notice','1');showToast('🔒 Salvataggio persistente attivo: i dati resistono alle pulizie del browser','info',5500)}}).catch(()=>{})}catch(e){}
+if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem('immocrm_persist_notice','1');showToast('🔒 Dati bloccati su questo dispositivo: le pulizie del browser non li cancellano','info',5500)}}).catch(()=>{})}catch(e){}
 if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristinati dalla copia di emergenza: la copia principale era stata cancellata (pulizia del PC?)','info',8000),900);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
+window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.0','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.1','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);

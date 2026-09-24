@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.2 · 24/09/2026 · riferito alla v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.3 · 24/09/2026 · riferito alla v10.5.1)
 ================================================================================
 
 COME SI USA
@@ -19,7 +19,7 @@ COME INIZIARE (tu, agente)
   3. Poi, nell'ordine: sync.js COMPLETO → le zone di app.js indicate in
      sezione 3 → tests/run.cjs (per capire come si verifica).
   4. npm install (se serve) e npm test: TUTTI i test verdi prima di tutto
-     (alla v10.5.0: 118/118).
+     (alla v10.5.1: 119/119).
   5. Domande di chiarimento all'utente: massimo 2. Poi si lavora.
   6. Chiudi sempre con la checklist della sezione 10.
 
@@ -219,6 +219,11 @@ f) v10.5 — TRE BLOCCHI NUOVI (non romperli):
      verifyStorage() → pulsante "🧪 Verifica copie" (verificaProtezione).
      resetTotale() DEVE cancellare anche le copie (emergencyClear),
      altrimenti il reset "resuscita" i dati.
+     v10.5.1: i testi di questa card sono in italiano chiaro (niente
+     "StorageManager" / "IndexedDB" verso l'utente). Se requestPersist()
+     torna false, attivaPersistenza() NON mostra un vicolo cieco:
+     apre #persist-help-modal (installa l'app, oppure Esporta backup
+     se l'app è già installata). Dopo appinstalled si riprova persist.
 
 --------------------------------------------------------------------------------
 4) INVARIANTI (se una modifica le viola: STOP e avvisami)

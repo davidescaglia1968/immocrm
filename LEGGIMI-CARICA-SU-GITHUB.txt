@@ -1,4 +1,4 @@
-ImmoCRM Pro v10.5.0 — CARICAMENTO SU GITHUB PAGES
+ImmoCRM Pro v10.5.1 — CARICAMENTO SU GITHUB PAGES
 ================================================
 
 NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
@@ -26,6 +26,14 @@ NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
    Se vedi la versione vecchia: Ctrl+F5 (o svuota la cache).
 
 ----------------------------------------------------------------
+
+COSA C'È DI NUOVO NELLA v10.5.1
+  • Gli avvisi in Impostazioni sono in italiano chiaro: niente sigle.
+    Se il browser non blocca i dati, l'app non si ferma: dice di
+    installare l'icona (così Windows e Android non li cancellano
+    con le pulizie) oppure di esportare un backup.
+  • L'avviso "non collegato al cloud" spiega il passo vero: apri
+    "Come collego il telefono", poi inquadra il QR.
 
 COSA C'È DI NUOVO NELLA v10.5.0
   • ALLARMI SCADENZE SU TUTTO IL CRM: campanella 🔔 con contatore nella
