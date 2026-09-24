@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.8 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.9 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -32,10 +32,12 @@ COME INIZIARE (tu, agente)
   7. Chiudi con la checklist della sezione 10.
 
 --------------------------------------------------------------------------------
-0) WEB + CRM, SEMPRE — PER FARLO RENDERE AL MASSIMO
+0) WEB + CRM, SEMPRE — PER TROVARE FUNZIONI UTILI E FARLO RENDERE AL MASSIMO
 --------------------------------------------------------------------------------
-A ogni chat e a ogni modifica, nuova o già presente, PRIMA di scrivere
-codice fai due analisi, aggiornate a OGGI, non alla data di questo file.
+Lo scopo dell'analisi web NON è solo aggiustare quello che c'è già.
+Serve a trovare ALTRE funzioni utili a un agente immobiliare di Piacenza,
+poi a confrontarle con il CRM e a proporre solo quelle attendibili e
+fattibili. A ogni chat e a ogni modifica, prima del codice:
 
   1. IL CRM INTERO. Non guardare solo la funzione chiesta. Rileggi le
      sezioni che il compito tocca e quelle vicine (sync, salvataggio,
@@ -88,6 +90,51 @@ Ultima ricerca web: 24/09/2026, seconda passata (sicurezza).
   - Il Gist non è un caveau. Va bene per l'archivio cifrato piccolo.
     Foto e PDF grossi lo mettono in crisi. Non usarlo come unica copia
     dei documenti AML.
+
+VALUTATORE — ricerca 24/09/2026. Non inventare rogiti. Non scrivere
+  "aggiornamento continuo da tutte le piattaforme": non esiste.
+  Nomi veri (Davide ha detto "brosino", "agent prycing", "e-stimalytics"):
+  - Borsino Immobiliare (borsinoimmobiliare.it / BorsinoPro): quotazioni
+    e, a pagamento, ricerca del venduto aggregato (portali, OMI, Istat,
+    referenti). API a pagamento (api.borsinopro.it). Non è fonte
+    ufficiale. Non copiare i loro numeri a mano e chiamarli OMI.
+  - AgentPricing (agentpricing.com, Reopla): software professionale.
+    "Venduto" dichiara compravendite verificate con Agenzia delle Entrate
+    e prezzo d'atto. È a pagamento, non è un archivio aperto. Senza
+    abbonamento e senza loro API non si può leggere da ImmoCRM.
+  - E-stimalytics (estimalytics.it, Carpi): NON è una banca del venduto.
+    È un valutatore automatico per trovare proprietari e fissare
+    appuntamenti. I valori li personalizza l'agenzia. Non usarlo come
+    fonte di rogiti.
+  Fonti ufficiose vs ufficiali, per Piacenza e l'Italia:
+  - UFFICIALE e usabile come fascia, non come prezzo di un singolo
+    rogito: OMI, Agenzia delle Entrate. Quotazioni min/max €/mq per
+    zona, tipologia e stato. Aggiornamento SEMESTRALE, non continuo.
+    Volumi (quante case si sono vendute) a parte, non sono il prezzo.
+    GeoPOI OMI è la mappa pubblica delle quotazioni.
+  - UFFICIALE per il prezzo dichiarato in atto: servizio "Consultazione
+    valori immobiliari dichiarati" (Agenzia delle Entrate, dal 1/1/2019,
+    aggiornamento mensile). Serve SPID o Fisconline. I dati sono anonimi:
+    non si risale al singolo immobile. Si vedono solo se nell'area e nel
+    periodo ci sono almeno 5 atti. Non c'è un rubinetto libero da
+    collegare all'app senza l'accesso di Davide. Copre più di 36 mesi
+    (dal 2019), non "gli ultimi 36" come filtro fisso.
+  - Archivio notarile di Piacenza (Via Nova 26): rilascia COPIE di atti
+    se hai gli estremi, a pagamento. Non pubblica un elenco dei rogiti
+    degli ultimi 36 mesi da scaricare in automatico. Il Consiglio
+    nazionale del notariato pubblica solo statistiche aggregate, non
+    i prezzi di via e civico.
+  - ANNUNCI (Immobiliare.it, Idealista, Casa.it): sono prezzi chiesti,
+    non venduti. Mai mescolarli al venduto senza dirlo.
+  Stato attuale del valutatore in app.js: tabella ZONE_PIACENZA scritta
+  a mano (fonte spesso "Borsino 2026" o "Stima 2026") e calcolo
+  mq × valore medio. NON legge l'OMI dal vivo e NON legge i rogiti.
+  La schermata "Compravendite" non deve dire "elaborazione automatica
+  OMI" se i numeri sono fissi nel codice. Quando si tocca il valutatore:
+  mostrare tre righe distinte (OMI fascia ufficiale, chiesto, venduto)
+  e la data della fonte. Il venduto singolo entra solo se Davide ha un
+  abbonamento (AgentPricing o BorsinoPro) e incolla i comparabili, oppure
+  se un giorno esiste un accesso ufficiale suo. Mai inventare un rogito.
   - A pagamento, per salire di livello senza far leggere i dati a una
     ditta: Tresorit (Svizzera, conoscenza zero, controlli esterni) o,
     in alternativa più economica, Proton Drive (Svizzera, conoscenza
@@ -161,7 +208,7 @@ Publishing : GitHub Pages legge dal branch MAIN, path "/".
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
              sito può essere più vecchio del resto. Non spaventarlo.
-             Questo prompt v2.7 NON è ancora su main. Se in una chat
+             Questo prompt v2.9 NON è ancora su main. Se in una chat
              nuova il file clonato è più vecchio del testo incollato
              dall'utente, vince il testo incollato.
 
