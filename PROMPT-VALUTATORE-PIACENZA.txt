@@ -509,11 +509,11 @@ in chat o in un file del sito.
     Quella regola resta nel prompt del CRM.
 
 ================================================================================
-9) QUANDO DIRÀ "INTEGRA"
+9) INTEGRAZIONE — GIÀ DECISA IL 24/09/2026
 ================================================================================
-Allora, e solo allora, questo file entra in PROMPT-AGENTE-IMMOCRM.txt
-come blocco proprio, "MACCHINA DI VALUTAZIONE", e sostituisce le
-frasi vecchie che:
+Davide non ha riletto questo file e ha detto di procedere. Il blocco
+corto è già in PROMPT-AGENTE-IMMOCRM.txt v2.11. Non duplicare le
+regole. Il blocco corto sostituisce le frasi vecchie che:
   - fanno generare comparabili finti;
   - chiamano OMI un numero scritto a mano;
   - dicono che il venduto entra solo da un abbonamento.
