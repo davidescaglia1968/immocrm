@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.7 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.8 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -25,18 +25,26 @@ COME INIZIARE (tu, agente)
      Sul main pubblicato il 24/09/2026 la suite storica è quella della
      v10.5.0. In locale, sul ramo non pubblicato, i test della v10.5.1
      sono 119/119. Conta quello che esegui tu, non il numero scritto qui.
-  5. PRIMA di implementare qualsiasi cosa (funzione nuova O già presente):
-     fai la ricerca web della sezione 0. Non saltarla.
+  5. PRIMA di ogni lavoro, anche piccolo: analisi web E rilettura del
+     CRM, sezione 0. Obiettivo: farlo rendere al massimo. Non saltarla.
   6. Domande a Davide: massimo 2, e solo se senza quella risposta rischi
      di perdere dati. Poi si lavora. Un passo alla volta.
   7. Chiudi con la checklist della sezione 10.
 
 --------------------------------------------------------------------------------
-0) RICERCA WEB OBBLIGATORIA — A OGNI IMPLEMENTAZIONE
+0) WEB + CRM, SEMPRE — PER FARLO RENDERE AL MASSIMO
 --------------------------------------------------------------------------------
-Ogni volta che implementi o tocchi una funzione, NUOVA o GIÀ ESISTENTE,
-prima di scrivere codice fai un'analisi web aggiornata a OGGI (non alla
-data di questo file). Cerca in italiano e in inglese. Almeno:
+A ogni chat e a ogni modifica, nuova o già presente, PRIMA di scrivere
+codice fai due analisi, aggiornate a OGGI, non alla data di questo file.
+
+  1. IL CRM INTERO. Non guardare solo la funzione chiesta. Rileggi le
+     sezioni che il compito tocca e quelle vicine (sync, salvataggio,
+     cifratura, allarmi, schermate che Davide usa). Cerca lentezza,
+     passi di troppo, frasi da tecnico, rischi di perdere dati, cose
+     già fatte due volte. Il confronto è: un agente immobiliare deve
+     trovare il dato in un attimo, su computer e telefono, senza
+     perdersi.
+  2. IL WEB. Cerca in italiano e in inglese. Almeno:
 
   A. La funzione stessa: come la fanno i CRM immobiliari italiani nel
      2026 (scadenze, mandati, AML, provvigioni, incroci, visite, portali).
@@ -49,13 +57,13 @@ data di questo file). Cerca in italiano e in inglese. Almeno:
   D. Cosa è già dentro ImmoCRM. Non reimplementare. Non aggiungere
      librerie esterne: lo stack è una PWA statica senza build.
 
-Dopo la ricerca:
-  - Implementa solo ciò che serve al compito chiesto, più le correzioni
-    piccole che evitano perdita dati o una frase falsa.
-  - Non partire da solo con un elenco di funzioni nuove. Se la ricerca
-    trova un miglioramento utile e sicuro, dillo a Davide in UNA frase
-    in italiano semplice e fallo solo se è dentro il compito, oppure
-    se lui dice sì.
+Dopo le due analisi, fai rendere l'app al massimo dentro il compito:
+  - Sistema ciò che è lento, fragile o scritto da tecnico, se non
+    rompe la cifratura e non crea un secondo archivio.
+  - Implementa il miglioramento che la ricerca indica come utile e
+    sicuro per QUESTO compito. Non aprire dieci cantieri nuovi.
+  - Se trovi un miglioramento grosso fuori dal compito, dillo in UNA
+    frase semplice e fallo solo se Davide dice sì.
   - Non proporre Cloudflare, Play Store o un file .exe per "risolvere"
     la sicurezza. Un servizio a pagamento si propone SOLO se è a
     conoscenza zero (non può leggere i dati) e Davide ha detto sì.
