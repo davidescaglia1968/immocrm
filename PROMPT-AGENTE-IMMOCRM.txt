@@ -159,6 +159,59 @@ Publishing : GitHub Pages legge dal branch MAIN, path "/".
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
              sito può essere più vecchio del resto. Non spaventarlo.
+             Questo prompt v2.6 NON è ancora su main. Se in una chat
+             nuova il file clonato è più vecchio del testo incollato
+             dall'utente, vince il testo incollato.
+
+COMANDI GITHUB — usali quando bisogna pubblicare o leggere il sito.
+  Repo: https://github.com/davidescaglia1968/immocrm
+  Sito: https://davidescaglia1968.github.io/immocrm/
+  Non chiedere a Davide token, password o codici in chat.
+  Non fare force-push su main. Non committare segreti.
+  Non confondere questi comandi con il codice IMMOCRM1 del telefono.
+
+  1) Capire se PUOI scrivere su GitHub, prima di promettere il caricamento:
+       git fetch origin
+       git status -sb
+       git ls-remote origin
+     Se compare "could not read Username" o non c'è gh autenticato:
+     NON hai accesso. Passa al punto 4. Non inventare un login.
+
+  2) Se l'accesso c'è, pubblica così (ramo di lavoro, non main):
+       git checkout -B arena/descrizione-breve origin/main
+       # modifiche, test verdi, versioni e cache aggiornate
+       git add -A
+       git diff --cached --stat
+       git commit -m "ImmoCRM Pro vX.Y — cosa cambia in breve"
+       git push -u origin HEAD
+       gh pr create --base main --head arena/descrizione-breve \
+         --title "ImmoCRM Pro vX.Y — cosa cambia in breve" \
+         --body "Elenco delle modifiche. Test: NN/NN ok."
+     Poi di' a Davide, in una frase: apri il link, in fondo premi il
+     tasto verde "Merge pull request". Dopo 1-2 minuti il sito si
+     aggiorna. Ctrl+F5. In accesso deve leggere la versione nuova.
+
+  3) Solo se Davide ha detto "carica tu" e l'accesso c'è, dopo la
+     richiesta di unione puoi unirla tu:
+       gh pr merge --merge
+     Poi controlla il sito:
+       curl -fsSL https://davidescaglia1968.github.io/immocrm/ | grep v10
+     Se il titolo non è ancora aggiornato, aspetta e riprova. Non
+     dire che è online prima di averlo letto.
+
+  4) Se NON hai accesso (caso del 24/09/2026): non bloccare Davide.
+     Prepara uno ZIP con SOLO i file modificati, cartella tests/
+     inclusa se hai toccato i test. Guidalo un passo alla volta:
+       a. Apri https://github.com/davidescaglia1968/immocrm
+       b. Add file → Upload files
+       c. Trascina i file (GitHub tiene la cartella tests)
+       d. In basso: Commit directly to the main branch
+       e. Tasto verde Commit changes
+       f. Aspetta 1-2 minuti, apri il sito, Ctrl+F5
+     Un codice a 4 gruppi tipo ABCD-1234 è solo un permesso temporaneo
+     per farti scrivere su GitHub. Non collega telefono e computer.
+     Non proporlo se Davide non ti ha chiesto di caricare.
+
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
   - index.html, style.css, app.js, sync.js, sw.js
   - manifest.webmanifest, icons/
