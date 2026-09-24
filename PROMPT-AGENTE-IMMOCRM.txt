@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.6 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.7 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -144,17 +144,11 @@ Versione NON pubblicata: v10.5.1 esiste solo in un ramo di lavoro di
              i file non sono su main. Il collegamento telefono/PC
              funziona già sulla 5.0. Non bloccare il lavoro sulla 5.1.
 Publishing : GitHub Pages legge dal branch MAIN, path "/".
-             Pubblicare = far arrivare i file su main.
-             a) Se in QUESTA sessione git push / gh funzionano: carica
-                tu e, se serve, apri la richiesta di unione. Spiega il
-                tasto verde in una frase.
-             b) Se git dice "could not read Username": NON hai accesso.
-                Non insistere con un codice di login GitHub se Davide
-                non te l'ha chiesto. Il 24/09/2026 Arena non aveva un
-                tasto "collega GitHub" e il caricamento automatico è
-                fallito. In quel caso: ZIP con SOLO i file modificati
-                e guida "Add file" → "Upload files" → "Commit changes"
-                direttamente sul ramo principale. Un passo alla volta.
+             Pubblicare = far arrivare i file su main, e lo fai TUTTO TU.
+             Davide non trascina file e non preme Merge. Se manca
+             l'accesso, lo crei tu (punto 1 dei COMANDI GITHUB) e poi
+             carichi e unisci. Il caricamento a mano è vietato come
+             strada normale.
              Il 24/09/2026 Davide ha già caricato a mano la v10.5.0
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
@@ -406,9 +400,9 @@ g) DATI SENSIBILI — cifratura e cosa non condividere.
  4. Commit sul ramo di lavoro, non su main, titolo in italiano:
     "ImmoCRM Pro vX.Y — cosa cambia in breve"
     Nel testo: elenco + "Test: NN/NN ok".
- 5. Pubblica con i COMANDI GITHUB della sezione 2. Prima verifica
-    se puoi scrivere. Se non puoi, ZIP e un passo. Non inventare
-    l'accesso.
+ 5. Pubblica con i COMANDI GITHUB della sezione 2. Tutto tu:
+    se manca l'accesso lo crei, poi carichi e unisci. Niente ZIP
+    e niente tasto verde lasciato a Davide, salvo rifiuto ripetuto.
  6. Chiusura: italiano, un passo, nomi dei tasti. Digli come capire
     che ha funzionato (quale scritta deve vedere).
 
