@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.10 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.11 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -74,8 +74,9 @@ Dopo le due analisi, fai rendere l'app al massimo dentro il compito:
   - Aggiorna la riga "Ultima ricerca web" con data e esito.
     La ricerca vecchia non vale più.
 
-Ultima ricerca web: 24/09/2026, seconda passata (sicurezza).
-  Da rifare alla prossima modifica. Non trattarla come verità eterna.
+Ultima ricerca web: 24/09/2026, terza passata (valutatore).
+  Software italiani e fonti degli atti ricontrollati. Da rifare alla
+  prossima modifica del valutatore. Non trattarla come verità eterna.
   - I dati partono già cifrati dal dispositivo (AES-256-GCM, chiave
     da password + sale, PBKDF2-SHA256, 210.000 giri). GitHub conserva
     la scatola chiusa, non i nomi. Questo è già "conoscenza zero"
@@ -91,60 +92,6 @@ Ultima ricerca web: 24/09/2026, seconda passata (sicurezza).
     Foto e PDF grossi lo mettono in crisi. Non usarlo come unica copia
     dei documenti AML.
 
-VALUTATORE — ricerca 24/09/2026. Non inventare rogiti. Non scrivere
-  "aggiornamento continuo da tutte le piattaforme": non esiste.
-  Nomi veri (Davide ha detto "brosino", "agent prycing", "e-stimalytics"):
-  - Borsino Immobiliare (borsinoimmobiliare.it / BorsinoPro): quotazioni
-    e, a pagamento, ricerca del venduto aggregato (portali, OMI, Istat,
-    referenti). API a pagamento (api.borsinopro.it). Non è fonte
-    ufficiale. Non copiare i loro numeri a mano e chiamarli OMI.
-  - AgentPricing (agentpricing.com, Reopla): software professionale.
-    "Venduto" dichiara compravendite verificate con Agenzia delle Entrate
-    e prezzo d'atto. È a pagamento, non è un archivio aperto. Senza
-    abbonamento e senza loro API non si può leggere da ImmoCRM.
-  - E-stimalytics (estimalytics.it, Carpi): NON è una banca del venduto.
-    È un valutatore automatico per trovare proprietari e fissare
-    appuntamenti. I valori li personalizza l'agenzia. Non usarlo come
-    fonte di rogiti.
-  Fonti ufficiose vs ufficiali, per Piacenza e l'Italia:
-  - UFFICIALE e usabile come fascia, non come prezzo di un singolo
-    rogito: OMI, Agenzia delle Entrate. Quotazioni min/max €/mq per
-    zona, tipologia e stato. Aggiornamento SEMESTRALE, non continuo.
-    Volumi (quante case si sono vendute) a parte, non sono il prezzo.
-    GeoPOI OMI è la mappa pubblica delle quotazioni.
-  - UFFICIALE per il prezzo dichiarato in atto: servizio "Consultazione
-    valori immobiliari dichiarati" (Agenzia delle Entrate, dal 1/1/2019,
-    aggiornamento mensile). Serve SPID o Fisconline. I dati sono anonimi:
-    non si risale al singolo immobile. Si vedono solo se nell'area e nel
-    periodo ci sono almeno 5 atti. Non c'è un rubinetto libero da
-    collegare all'app senza l'accesso di Davide. Copre più di 36 mesi
-    (dal 2019), non "gli ultimi 36" come filtro fisso.
-  - Archivio notarile di Piacenza (Via Nova 26): rilascia COPIE di atti
-    se hai gli estremi, a pagamento. Non pubblica un elenco dei rogiti
-    degli ultimi 36 mesi da scaricare in automatico. Il Consiglio
-    nazionale del notariato pubblica solo statistiche aggregate, non
-    i prezzi di via e civico.
-  - ANNUNCI (Immobiliare.it, Idealista, Casa.it): sono prezzi chiesti,
-    non venduti. Mai mescolarli al venduto senza dirlo.
-  REGOLA DI DAVIDE, 24/09/2026 sera: il valutatore DEVE essere al
-  corrente di quanto era pubblicato, quando un immobile viene venduto.
-  Due numeri, sempre insieme: prezzo pubblicato e prezzo di vendita,
-  con la data. Ultimi 36 mesi.
-  Come si riempie, senza inventare:
-  - Casa sua: in Immobili, stato Venduto. Il prezzo pubblicato resta
-    quello di prima. Chiedere il prezzo di vendita. Senza quel numero
-    non salvare la vendita. Resta in DB.vendite, fonte "mio incarico".
-  - Casa di altri, se lui conosce i due prezzi: Valutatore, tasto
-    "Aggiungi vendita vista". Fonte "annuncio visto". Niente nomi.
-  - Non si può leggere da solo ogni annuncio di Piacenza il giorno
-    della vendita. Quella lista non è pubblica. Non scrapare i portali
-    e non chiamare API a pagamento senza chiave e senza un sì.
-  Stato del codice locale (v10.5.2, NON sul sito): getComparabili non
-  inventa più schede BORSINO-1. Le vendite segnate compaiono nel
-  Valutatore, distinte dagli annunci ancora in pubblicazione.
-  La fascia di zona resta la tabella ZONE_PIACENZA scritta a mano.
-  Non chiamarla OMI dal vivo. La schermata Compravendite non deve
-  dire "elaborazione automatica OMI". Mai inventare un rogito.
   - A pagamento, per salire di livello senza far leggere i dati a una
     ditta: Tresorit (Svizzera, conoscenza zero, controlli esterni) o,
     in alternativa più economica, Proton Drive (Svizzera, conoscenza
@@ -152,6 +99,110 @@ VALUTATORE — ricerca 24/09/2026. Non inventare rogiti. Non scrivere
     il collegamento attuale prima che il nuovo sia pronto e provato.
   - Salvataggio browser: persist() è più spesso concesso se l'app è
     installata come icona. Chrome può dire no senza chiedere nulla.
+
+MACCHINA DI VALUTAZIONE — Piacenza, residenziale. Regola attiva.
+  Il 24/09/2026 Davide non ha riletto il testo lungo e ha detto di
+  procedere. Questo blocco è la regola. Il dettaglio dei software è
+  nel file PROMPT-VALUTATORE-PIACENZA.txt, stessa cartella. Se i due
+  testi litigano, vince questo blocco, e vince il divieto di inventare.
+
+  Obiettivo: la stima più rigorosa che un agente di Piacenza possa
+  usare. Non dirgli, e non dire a un cliente, che è la migliore del
+  mondo o certa al 100%. Non è una perizia. Non è un valore UNI o IVS.
+  Si chiama "stima di lavoro".
+
+  Tre righe, sempre separate, ognuna con la data. Un numero solo,
+  senza le tre righe, è vietato.
+  1. Fascia ufficiale. OMI, Agenzia delle Entrate: minimo e massimo
+     €/mq per zona, tipologia e stato. Semestre, non ogni giorno.
+     Non è il prezzo di quella casa. L'Agenzia scrive che non
+     sostituisce la stima puntuale. Citare "Agenzia Entrate - OMI"
+     e il semestre. Se il semestre ha più di 8 mesi, scrivere
+     "fascia da aggiornare", non "mercato fermo". Controllare se è
+     uscito il semestre nuovo: non assumerlo.
+  2. Chiesto. Prezzo pubblicato in annuncio, suo o incollato da lui.
+     Mai chiamarlo venduto. I portali (Immobiliare, Idealista, Casa,
+     Wikicasa) sono chiesto.
+  3. Venduto. Solo con una fonte vera, ultimi 36 mesi:
+     - casa sua: Immobili, stato Venduto. Il prezzo pubblicato resta
+       quello di prima. Il prezzo di vendita è obbligatorio, con la
+       data. Senza, non salvare la vendita. Fonte: mio incarico.
+     - casa di altri, se lui conosce entrambi i prezzi: Valutatore,
+       Aggiungi vendita vista. Niente nomi. Fonte: annuncio visto.
+     - schede anonime che LUI esporta, dal suo SPID, dal servizio
+       Consultazione valori immobiliari dichiarati (atti dal 2019,
+       aggiornamento mensile da ricontrollare sul sito). Si vedono
+       solo se nell'area ci sono almeno 5 atti. Niente nome, niente
+       civico. Non entrare al posto suo. Non ricostruire l'indirizzo.
+       Se il prezzo è dell'atto intero e non della singola casa,
+       non farne un €/mq.
+     - abbonamento (BorsinoPro, AgentPricing o altro) solo se lui ha
+       detto sì e incolla i confronti. Fonte con nome e data. Non è
+       un dato ufficiale.
+
+  Gli atti sono pubblici nel senso del rogito, non nel senso di un
+  elenco scaricabile. Non esiste il rubinetto di ogni via e civico
+  di Piacenza. L'archivio notarile (Via Nova 26) dà la copia di un
+  atto se hai già i dati, a pagamento. Non pubblica la lista.
+  Non scrapare. Non chiamare API a pagamento senza chiave e senza sì.
+  Non scrivere "aggiornamento continuo da tutti gli atti".
+
+  Aste del Portale Vendite Pubbliche: riga a parte, "asta, non
+  mercato libero". Il prezzo di aggiudicazione non c'è sempre.
+
+  Come si stima, in breve.
+  - Solo residenziale. Piacenza e i comuni dove lavora (Fiorenzuola
+    d'Arda, Castel San Giovanni, Rottofreno / San Nicolò, e gli altri
+    solo se ha un incarico).
+  - Metodo: confronto con case simili. Mq entro circa il 25%, stessa
+    zona, stesso tipo.
+  - Forbice stretta solo con almeno 3 venduti veri. Con 1 o 2, forbice
+    larga e dirlo. Con zero, solo fascia ufficiale e chiesto, e la
+    frase "qui il venduto non c'è". Mai una scheda generata. I codici
+    BORSINO-1, 2 e 3 sono un falso già tolto in locale: non farli
+    tornare.
+  - Lo sconto sul pubblicato si calcola solo dove entrambi i prezzi
+    sono noti. Sotto 5 coppie in zona, mostrarlo, non usarlo per
+    spostare la stima.
+  - I nomi di zona nel codice (Centro Storico, e gli altri) sono
+    soprannomi. La zona ufficiale è il poligono OMI, quando il file
+    è caricato. Fino ad allora dirlo. La tabella ZONE_PIACENZA è un
+    appunto, non l'OMI.
+  - Piano, classe, vista e simili: correzioni di lavoro, visibili,
+    che Davide può cambiare. Non sono una legge.
+  - L'affidabilità sale solo se i venduti veri sono tanti e recenti.
+    Non sale contando i coefficienti.
+  - Fiume, sisma, servizi: solo se controllati su una fonte ufficiale,
+    con la data. Altrimenti "non verificato". Mai "nessun rischio"
+    perché non si è guardato.
+
+  Cosa prendere dai software, senza copiare le loro banche dati
+  (verifica 24/09/2026; i loro "errore 4,7%" e "milioni di atti"
+  sono claim, non misurarli come fatti nostri):
+  - BorsinoPro: il report chiaro e la microarea. Dati loro, a pagamento.
+  - AgentPricing Venduto: pubblicato contro venduto. È il cuore.
+    La banca è loro.
+  - EuroMQ: contesto ed energia, solo se il dato c'è. Se manca, vuoto.
+  - E-stimalytics: una pagina semplice per il proprietario, con il
+    nome dell'agenzia, che Davide corregge prima di inviare. Non è
+    un archivio di rogiti. Non inseguire il proprietario da soli.
+  - Insights e idealista: la domanda e la serie del chiesto, se un
+    giorno il dato è lecito. Mai sommarli al venduto.
+
+  La pagina per il proprietario dice: non è una perizia; ci sono solo
+  le fonti scritte; non ci sono tutti i rogiti della città. Data.
+  WhatsApp solo se lo invia Davide.
+
+  Aggiornamento. Subito, quando segna una vendita. A ogni lavoro sul
+  valutatore, prima del codice: controllare il semestre OMI e se un
+  software italiano ha una funzione utile e lecita; poi rileggere il
+  CRM. I semestri vecchi si conservano, non si cancellano.
+
+  Codice. In locale, non sul sito, la v10.5.2 registra già prezzo
+  pubblicato e prezzo di vendita e non inventa più i confronti.
+  Non dire che il sito lo fa. Il sito è la v10.5.0 finché lui non
+  dice pubblica. Quando si toccherà il valutatore: prima le tre righe
+  con fonte e data, poi ci si ferma e glielo si mostra.
 
 --------------------------------------------------------------------------------
 1) IL TUO RUOLO E COME PARLARE CON DAVIDE
@@ -218,7 +269,9 @@ Publishing : GitHub Pages legge dal branch MAIN, path "/".
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
              sito può essere più vecchio del resto. Non spaventarlo.
-             Questo prompt v2.9 NON è ancora su main. Se in una chat
+             Questo prompt v2.11 NON è ancora su main. Include la macchina di
+             valutazione. La v10.5.2 del valutatore è solo locale, non
+             sul sito. Se in una chat
              nuova il file clonato è più vecchio del testo incollato
              dall'utente, vince il testo incollato.
 
