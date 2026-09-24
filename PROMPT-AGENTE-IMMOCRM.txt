@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.9 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.10 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -126,15 +126,25 @@ VALUTATORE — ricerca 24/09/2026. Non inventare rogiti. Non scrivere
     i prezzi di via e civico.
   - ANNUNCI (Immobiliare.it, Idealista, Casa.it): sono prezzi chiesti,
     non venduti. Mai mescolarli al venduto senza dirlo.
-  Stato attuale del valutatore in app.js: tabella ZONE_PIACENZA scritta
-  a mano (fonte spesso "Borsino 2026" o "Stima 2026") e calcolo
-  mq × valore medio. NON legge l'OMI dal vivo e NON legge i rogiti.
-  La schermata "Compravendite" non deve dire "elaborazione automatica
-  OMI" se i numeri sono fissi nel codice. Quando si tocca il valutatore:
-  mostrare tre righe distinte (OMI fascia ufficiale, chiesto, venduto)
-  e la data della fonte. Il venduto singolo entra solo se Davide ha un
-  abbonamento (AgentPricing o BorsinoPro) e incolla i comparabili, oppure
-  se un giorno esiste un accesso ufficiale suo. Mai inventare un rogito.
+  REGOLA DI DAVIDE, 24/09/2026 sera: il valutatore DEVE essere al
+  corrente di quanto era pubblicato, quando un immobile viene venduto.
+  Due numeri, sempre insieme: prezzo pubblicato e prezzo di vendita,
+  con la data. Ultimi 36 mesi.
+  Come si riempie, senza inventare:
+  - Casa sua: in Immobili, stato Venduto. Il prezzo pubblicato resta
+    quello di prima. Chiedere il prezzo di vendita. Senza quel numero
+    non salvare la vendita. Resta in DB.vendite, fonte "mio incarico".
+  - Casa di altri, se lui conosce i due prezzi: Valutatore, tasto
+    "Aggiungi vendita vista". Fonte "annuncio visto". Niente nomi.
+  - Non si può leggere da solo ogni annuncio di Piacenza il giorno
+    della vendita. Quella lista non è pubblica. Non scrapare i portali
+    e non chiamare API a pagamento senza chiave e senza un sì.
+  Stato del codice locale (v10.5.2, NON sul sito): getComparabili non
+  inventa più schede BORSINO-1. Le vendite segnate compaiono nel
+  Valutatore, distinte dagli annunci ancora in pubblicazione.
+  La fascia di zona resta la tabella ZONE_PIACENZA scritta a mano.
+  Non chiamarla OMI dal vivo. La schermata Compravendite non deve
+  dire "elaborazione automatica OMI". Mai inventare un rogito.
   - A pagamento, per salire di livello senza far leggere i dati a una
     ditta: Tresorit (Svizzera, conoscenza zero, controlli esterni) o,
     in alternativa più economica, Proton Drive (Svizzera, conoscenza
