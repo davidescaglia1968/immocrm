@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.5 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.6 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -353,8 +353,9 @@ g) DATI SENSIBILI — cifratura e cosa non condividere.
  4. Commit sul ramo di lavoro, non su main, titolo in italiano:
     "ImmoCRM Pro vX.Y — cosa cambia in breve"
     Nel testo: elenco + "Test: NN/NN ok".
- 5. Pubblica come in sezione 2. Se non hai accesso GitHub, non
-    bloccare Davide con un codice di login. ZIP e un passo.
+ 5. Pubblica con i COMANDI GITHUB della sezione 2. Prima verifica
+    se puoi scrivere. Se non puoi, ZIP e un passo. Non inventare
+    l'accesso.
  6. Chiusura: italiano, un passo, nomi dei tasti. Digli come capire
     che ha funzionato (quale scritta deve vedere).
 
