@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.4 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.5 · 24/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -56,28 +56,37 @@ Dopo la ricerca:
     trova un miglioramento utile e sicuro, dillo a Davide in UNA frase
     in italiano semplice e fallo solo se è dentro il compito, oppure
     se lui dice sì.
-  - Non proporre Cloudflare, un server a pagamento, Play Store o un
-    file .exe. Il cloud è già il Gist privato del suo GitHub, cifrato.
-  - Aggiorna in fondo a QUESTO file la riga "Ultima ricerca web" con
-    la data e 3 righe di esito. La ricerca vecchia non vale più.
+  - Non proporre Cloudflare, Play Store o un file .exe per "risolvere"
+    la sicurezza. Un servizio a pagamento si propone SOLO se è a
+    conoscenza zero (non può leggere i dati) e Davide ha detto sì.
+    Un CRM a pagamento normale è PEGGIO: quella ditta vedrebbe i clienti.
+  - Mai promettere "sicuro al 100%". Non esiste.
+  - Aggiorna la riga "Ultima ricerca web" con data e esito.
+    La ricerca vecchia non vale più.
 
-Ultima ricerca web: 24/09/2026 (da rifare alla prossima modifica).
-  Esito, non da trattare come verità permanente:
-  - Il salvataggio persistente del browser viene concesso più spesso
-    se l'app è installata (icona), non se è solo una scheda. Chrome
-    può dire no senza chiedere nulla. Safari può cancellare i dati
-    dopo giorni di inattività. Fonte: documentazione Microsoft Edge
-    sulle PWA e note StorageManager.
-  - I CRM immobiliari italiani 2026 spingono su: cosa fare oggi,
-    scadenze mandati, incrocio domanda/offerta, AML, provvigioni,
-    follow-up, portali (Immobiliare.it, Idealista, Casa.it, Wikicasa).
-    ImmoCRM ha già regia, allarmi, incroci, OMI, AML, fatture,
-    template WhatsApp. I portali ufficiali richiedono account e
-    spesso un servizio esterno: non inventarli dentro app.js.
-  - Per Davide il tablet giusto, quando lo compra, è un Android
-    (Samsung Galaxy Tab S11, Wi-Fi, almeno 256 GB): stesso mondo
-    del telefono. L'iPad è più potente ma il collegamento è meno
-    semplice. Non serve il modello più caro per questa app.
+Ultima ricerca web: 24/09/2026, seconda passata (sicurezza).
+  Da rifare alla prossima modifica. Non trattarla come verità eterna.
+  - I dati partono già cifrati dal dispositivo (AES-256-GCM, chiave
+    da password + sale, PBKDF2-SHA256, 210.000 giri). GitHub conserva
+    la scatola chiusa, non i nomi. Questo è già "conoscenza zero"
+    verso GitHub, se la cifratura non viene tolta.
+  - Il buco vero: il codice dispositivo e il QR contengono il permesso
+    di raggiungere la scatola (campo t). Chi lo ha può scaricare,
+    sostituire o cancellare la scatola. Non può leggerla senza password.
+    Non mettere quel codice in chat, WhatsApp o screenshot pubblici.
+  - 210.000 giri sono sotto la guida OWASP 2026 per PBKDF2-SHA256
+    (circa 600.000). Non alzarli di colpo: serve un cambio chiave
+    pianificato, con test, senza staccare i dispositivi.
+  - Il Gist non è un caveau. Va bene per l'archivio cifrato piccolo.
+    Foto e PDF grossi lo mettono in crisi. Non usarlo come unica copia
+    dei documenti AML.
+  - A pagamento, per salire di livello senza far leggere i dati a una
+    ditta: Tresorit (Svizzera, conoscenza zero, controlli esterni) o,
+    in alternativa più economica, Proton Drive (Svizzera, conoscenza
+    zero, audit). Non migrare finché Davide non dice sì. Non staccare
+    il collegamento attuale prima che il nuovo sia pronto e provato.
+  - Salvataggio browser: persist() è più spesso concesso se l'app è
+    installata come icona. Chrome può dire no senza chiedere nulla.
 
 --------------------------------------------------------------------------------
 1) IL TUO RUOLO E COME PARLARE CON DAVIDE
@@ -115,7 +124,10 @@ dati troppi codici insieme. Da quella lezione:
   diverso: computer e telefono non si vedono più. Se un dispositivo
   è già collegato, l'altro entra con "Usa codice" o con il QR, non
   con un permesso nuovo.
-- Cloudflare non serve. Nessuna altra piattaforma serve.
+- Cloudflare non serve per collegare i dispositivi.
+- Nessun sistema è sicuro al 100%. Non dirlo mai.
+- Un servizio a pagamento ha senso solo se NON può leggere i dati
+  (conoscenza zero). Vedi sezione 3g. Non migrare senza un sì.
 
 --------------------------------------------------------------------------------
 2) IL PROGETTO (fatti — verifica, non supporre)
@@ -190,9 +202,11 @@ STATO REALE DEI DISPOSITIVI — visto sugli screenshot del 24/09/2026
   Salvataggio: automatico. Nessun tasto Salva generale. In alto, per
   un attimo, una spunta. Dentro una scheda contatto/immobile il tasto
   Salva c'è, in basso.
-  Backup: copia di riserva a ogni salvataggio; lista Ripristina al
-  massimo ogni 20 minuti; "Esporta backup" crea un file quando lui
-  lo chiede. Non dire "backup a ogni secondo".
+  Backup: doppia copia di emergenza circa ogni 30 secondi (non a ogni
+  singolo tasto, c'è un freno); lista Ripristina al massimo ogni 20
+  minuti, ultime 24. "Esporta backup" crea un file quando lui lo chiede.
+  Non dire "backup a ogni secondo" e non dire "a ogni salvataggio"
+  per la lista Ripristina.
   Tablet: NON collegato. Davide ne comprerà uno nuovo più avanti.
   Consiglio già dato: Samsung Galaxy Tab S11 Wi-Fi, almeno 256 GB.
   Quando arriva, si collega come il telefono (QR o Usa codice),
@@ -289,6 +303,25 @@ f) v10.5 — tre blocchi, non romperli:
    dice no, finestra #persist-help-modal che dice di installare
    l'app, non la frase "Persistenza non concessa". Dopo
    appinstalled si riprova. Non rimettere le sigle nei testi.
+
+g) DATI SENSIBILI — cifratura e cosa non condividere.
+   Contatti, telefoni, documenti, mandati, note AML sono dati di
+   altre persone. Non vanno in chat, in file pubblici, in log, in
+   screenshot che finiscono nel repository.
+   La cifratura è sul dispositivo, PRIMA dell'invio. Non toglierla.
+   Non mandare mai l'archivio in chiaro "per comodità" o per un
+   servizio che deve leggerlo.
+   Il codice dispositivo / QR non è la chiave di lettura, ma è un
+   permesso potente (campo t). Trattalo come un segreto.
+   Promettere il 100% è falso. I limiti reali sono: password debole,
+   dispositivo già aperto, codice/QR copiato, bug nostro non auditato,
+   documenti troppo grandi per il Gist.
+   Sistema a pagamento accettabile, solo dopo un sì di Davide e senza
+   spegnere il collegamento attuale finché il nuovo non è provato:
+   Tresorit (prima scelta, Svizzera, conoscenza zero) oppure Proton
+   Drive. Vietato: CRM immobiliare a pagamento che vede i clienti,
+   Google Drive / Dropbox / OneDrive come copia in chiaro, Cloudflare
+   come "sicurezza".
 
 --------------------------------------------------------------------------------
 4) INVARIANTI (se una modifica le viola: STOP e avvisa)
