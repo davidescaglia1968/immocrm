@@ -1,4 +1,4 @@
-ImmoCRM Pro v10.3 — CARICAMENTO SU GITHUB PAGES
+ImmoCRM Pro v10.5.0 — CARICAMENTO SU GITHUB PAGES
 ================================================
 
 NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
@@ -27,16 +27,26 @@ NON copiare e incollare i file nell'editor di GitHub: sono troppo grandi.
 
 ----------------------------------------------------------------
 
-COSA C'È DI NUOVO NELLA v10.3
-  • LOGIN OBBLIGATORIO ad ogni avvio: l'app non si apre più da sola,
-    chiede sempre la password.
-  • CODICE DISPOSITIVO: dopo il primo collegamento te lo mostro io,
-    con un pulsante "Copia".
-  • CHIAVE DI CIFRATURA E PASSWORD CONDIVISE: il codice le porta con sé,
-    così il secondo dispositivo NON mostra più il triangolo giallo
-    "problema" e legge subito i dati.
-  • AVVIO SEMPLIFICATO: il token GitHub lo metti UNA SOLA VOLTA sul primo
-    dispositivo; sugli altri basta password + codice.
+COSA C'È DI NUOVO NELLA v10.5.0
+  • ALLARMI SCADENZE SU TUTTO IL CRM: campanella 🔔 con contatore nella
+    barra in alto. Allarme automatico su 4 livelli: 3 giorni prima,
+    2 giorni prima, 1 giorno prima e il giorno stesso. Vale per
+    attività, appuntamenti, chiamate da richiamare, contatti,
+    documenti, fatture da incassare, open house e mandati. Clic sulla
+    campanella = pannello scadenze; riassunto anche in "Da Fare Oggi".
+  • QR PER COLLEGARE IL TELEFONO: nel pannello Sincronizzazione c'è un
+    codice QR. Inquadralo con la fotocamera del telefono: l'app si apre
+    col CODICE DISPOSITIVO GIÀ INSERITO — sul telefono basta scrivere
+    la password. Se il dispositivo non è ancora collegato al cloud,
+    il pannello mostra un avviso arancione chiaro.
+  • PROTEZIONE DATI DA PULIZIA DEL COMPUTER: l'app chiede al browser il
+    salvataggio PERSISTENTE (i dati non vengono cancellati dalle pulizie
+    automatiche), tiene una DOPPIA COPIA LOCALE DI EMERGENZA e, se la
+    copia principale sparisce, la ripristina da sola all'avvio.
+    In Impostazioni c'è la card "🛡️ Protezione dati" col pulsante
+    "🧪 Verifica copie" che controlla tutto in 2 secondi.
+  • Corretto un difetto di avvio: se la copia principale veniva cancellata
+    ma restava quella in IndexedDB, l'app partiva vuota; ora no.
 
 ----------------------------------------------------------------
 
@@ -56,8 +66,10 @@ USARLO SU PC, TABLET E SMARTPHONE CON GLI STESSI DATI
   Da quel momento contatti, immobili, incroci e agenda sono identici ovunque,
   e la password funziona uguale su tutti i dispositivi.
 
-I dati restano comunque salvati anche in locale su ogni dispositivo
-(backup automatico ogni 20 minuti, ripristinabile da Impostazioni).
+I dati restano comunque salvati anche in locale su ogni dispositivo:
+copia principale, copia in IndexedDB, doppia copia di emergenza (v10.5)
+e backup automatico ogni 20 minuti, ripristinabile da Impostazioni.
 
-NOTA: il codice dispositivo contiene la chiave di cifratura — trattalo
-come la password. Se cambi password, rigenera il codice.
+NOTA: il codice dispositivo (e il suo QR) è un permesso di collegamento:
+chi lo possiede PUÒ collegarsi al tuo archivio — trattalo come la
+password e non condividerlo. Se cambi password o archivio, rigeneralo.

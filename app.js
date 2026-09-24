@@ -309,7 +309,7 @@ const i=document.getElementById('login-pass');if(i){i.value='';setTimeout(()=>i.
 function entraApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app-shell').style.display='flex';
 const a=getAuth();if(a&&a.nome){document.getElementById('uname').textContent=a.nome;document.getElementById('uav').textContent=a.nome.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}
 loadDB();document.getElementById('topbar-date').textContent=new Date().toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
-buildNav();render();updateBadges();injectMobile();renderSyncPill();armaLock();
+buildNav();render();updateBadges();injectMobile();renderSyncPill();armaLock();notificaAllarmi();
 if(_bootstrapped)return;_bootstrapped=true;
 setInterval(updateBadges,60000);
 setInterval(()=>{try{if(window.ImmoSync)ImmoSync.mirror(DB)}catch(e){}},60000);
@@ -360,15 +360,75 @@ if(eraRemoto)ImmoSync.pull().then(()=>{render();renderSyncPill()})}
 function chiudiPromptCloud(ok){const m=document.getElementById('cl-modal');if(m)m.remove();_passPromptOpen=false;
 const r=window._clRes;window._clRes=null;window._clEnv=null;if(r)r(!!ok)}
 // v10.3: LOGIN OBBLIGATORIO ad ogni avvio — niente apertura automatica
-function checkLoginRequired(){loadDB();showLogin()}
+function checkLoginRequired(){leggiCodiceDaURL();loadDB();showLogin()}
+/* v10.5: QR — se l'app viene aperta da un link/QR con #codice=IMMOCRM1.…
+   il codice dispositivo è GIA' INSERITO: sul telefono basta la password. */
+function leggiCodiceDaURL(){
+try{
+const h=(typeof location!=='undefined'&&location.hash)||'';
+const m=h.match(/[#&]codice=([^&#]+)/);if(!m)return false;
+let code=m[1];try{code=decodeURIComponent(code)}catch(e){}
+code=String(code).replace(/\s+/g,'');
+if(code.indexOf('IMMOCRM1.')!==0)return false;
+const inp=document.getElementById('login-code');if(inp)inp.value=code;
+const w=document.getElementById('login-code-wrap');if(w)w.style.display='block';
+const hint=document.getElementById('qr-code-hint');if(hint)hint.style.display='block';
+window._codiceDaQR=true;
+try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
+return true;
+}catch(e){return false}}
 function showToast(m,t='success',d=3000){const el=document.createElement('div');el.className='toast toast-'+t;el.textContent=m;document.getElementById('toast-container').appendChild(el);setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.remove(),300)},d)}
 const RENDERERS={};
 function buildNav(){const n=document.getElementById('nav');if(!n)return;n.innerHTML=NAV_ITEMS.map(x=>`<button class="nav-item ${x.id===activeSection?'active':''}" onclick="go('${x.id}')"><span class="nav-icon">${x.icon}</span><span class="nav-label">${x.label}</span><span class="nav-badge" id="badge-${x.id}" style="display:none"></span></button>`).join('')}
 function go(id){activeSection=id;document.querySelectorAll('.nav-item').forEach(e=>e.classList.remove('active'));const b=document.querySelector(`.nav-item[onclick="go('${id}')"]`);if(b)b.classList.add('active');if(innerWidth<768)document.getElementById('sidebar')?.classList.remove('mobile-open');render()}
-function render(){const c=document.getElementById('content');if(!c)return;c.classList.remove('fade-up');void c.offsetWidth;c.classList.add('fade-up');const p=NAV_ITEMS.find(n=>n.id===activeSection);document.getElementById('page-title').textContent=p?p.label:'';const r=RENDERERS[activeSection]||renderDashboard;try{r(c)}catch(e){c.innerHTML=`<div class="card">Errore: ${esc(e.message)}</div>`;console.error(e)}}
+function render(){const c=document.getElementById('content');if(!c)return;c.classList.remove('fade-up');void c.offsetWidth;c.classList.add('fade-up');const p=NAV_ITEMS.find(n=>n.id===activeSection);document.getElementById('page-title').textContent=p?p.label:'';const r=RENDERERS[activeSection]||renderDashboard;try{r(c)}catch(e){c.innerHTML=`<div class="card">Errore: ${esc(e.message)}</div>`;console.error(e)}aggiornaCampanella()}
 function topAdd(){const m={contatti:()=>openContattoModal(),immobili:()=>openImmobileModal(),chiamate:()=>openChiamataModal(),mandati:()=>openMandatoModal(),leads:()=>openLeadModal(),pipeline:()=>openTrattativaModal(),calendario:()=>openAppModal(),attivita:()=>openAttivitaModal(),documenti:()=>openDocumentoModal(),fatture:()=>openFatturaModal(),openhouse:()=>openOpenHouseModal()};(m[activeSection]||(()=>openContattoModal()))()}
 function toggleSidebar(){sidebarCollapsed=!sidebarCollapsed;document.getElementById('sidebar').classList.toggle('collapsed',sidebarCollapsed)}
-function updateBadges(){const o=today();const df=(DB.attivita||[]).filter(a=>!a.done&&a.scadenza<=o).length;const ap=(DB.appuntamenti||[]).filter(a=>a.data===o&&a.stato!=='completato'&&a.stato!=='annullato').length;const dr=(DB.chiamate||[]).filter(c=>c.dataRichiamo&&c.dataRichiamo<=o&&STATI_CHIUSI_CH.indexOf(c.stato)<0).length;const rc=(DB.clienti||[]).filter(c=>c.dataRichiamo&&c.dataRichiamo<=o&&c.stato!=='chiuso').length;setBadge('da-fare',df+rc);setBadge('calendario',ap);setBadge('chiamate',dr);setBadge('contatti',rc)}
+function updateBadges(){const o=today();const df=(DB.attivita||[]).filter(a=>!a.done&&a.scadenza<=o).length;const ap=(DB.appuntamenti||[]).filter(a=>a.data===o&&a.stato!=='completato'&&a.stato!=='annullato').length;const dr=(DB.chiamate||[]).filter(c=>c.dataRichiamo&&c.dataRichiamo<=o&&STATI_CHIUSI_CH.indexOf(c.stato)<0).length;const rc=(DB.clienti||[]).filter(c=>c.dataRichiamo&&c.dataRichiamo<=o&&c.stato!=='chiuso').length;setBadge('da-fare',df+rc);setBadge('calendario',ap);setBadge('chiamate',dr);setBadge('contatti',rc);aggiornaCampanella()}
+/* ---------- v10.5: ALLARMI SCADENZE — automatici su 4 livelli (3 giorni
+   prima, 2 giorni prima, 1 giorno prima, oggi) per TUTTO il CRM: attività,
+   appuntamenti, chiamate da richiamare, contatti, documenti, fatture da
+   incassare, open house e mandati. Campanella 🔔 in topbar + pannello +
+   riassunto in "Da Fare Oggi". ---------- */
+const ALLARME_LABEL={3:'Tra 3 giorni',2:'Tra 2 giorni',1:'Domani',0:'Oggi'};
+const ALLARME_ICON={3:'🟡',2:'🟠',1:'🔴',0:'⏰'};
+const ALLARME_BADGE={3:'badge-gold',2:'badge-orange',1:'badge-red',0:'badge-red'};
+const ALLARME_COLOR={3:'var(--gold)',2:'var(--orange)',1:'var(--red)',0:'var(--red)'};
+function giorniMancanti(d){if(!d)return null;const s=String(d).slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return null;const a=new Date(today()+'T00:00:00'),b=new Date(s+'T00:00:00');if(isNaN(b.getTime()))return null;return Math.round((b.getTime()-a.getTime())/86400000)}
+function livelloAllarme(gg){return(gg===null||gg===undefined||gg<0||gg>3)?null:gg}
+function raccogliScadenze(){const out=[];
+const push=(tipo,icon,id,titolo,dettaglio,data,sezione,soloFutura)=>{const gg=giorniMancanti(data);if(gg===null)return;if(soloFutura&&gg<0)return;out.push({tipo,icon,id:String(id==null?'':id),titolo:String(titolo||'').trim()||'(senza titolo)',dettaglio:dettaglio||'',data:String(data).slice(0,10),gg,livello:livelloAllarme(gg),sezione})};
+(DB.attivita||[]).forEach(a=>{if(!a.done&&a.scadenza)push('Attività','📌',a.id,a.titolo,a.contattoNome?('👤 '+a.contattoNome):'',a.scadenza,'da-fare',false)});
+(DB.appuntamenti||[]).forEach(a=>{if(a.stato!=='completato'&&a.stato!=='annullato'&&a.data)push('Appuntamento','📅',a.id,(a.ora?a.ora+' · ':'')+(a.titolo||''),a.contatto||'',a.data,'calendario',true)});
+(DB.chiamate||[]).forEach(ch=>{if(ch.dataRichiamo&&STATI_CHIUSI_CH.indexOf(ch.stato)<0)push('Chiamata','📞',ch.id,ch.nome||ch.telefono||'Chiamata','da richiamare',ch.dataRichiamo,'chiamate',false)});
+(DB.clienti||[]).forEach(x=>{if(x.dataRichiamo&&x.stato!=='chiuso')push('Contatto','👤',x.id,((x.nome||'')+' '+(x.cognome||'')).trim(),'richiamo',x.dataRichiamo,'contatti',false)});
+(DB.documenti||[]).forEach(d=>{if(d.scadenza)push('Documento','📄',d.id,d.titolo,d.tipo||'',d.scadenza,'documenti',false)});
+(DB.fatture||[]).forEach(f=>{if(f.stato!=='incassata'&&f.scadenza)push('Fattura','🧾',f.id,(f.numero||'Fattura')+' · '+fmtEuroShort(f.totale),(f.cliente?f.cliente+' · ':'')+'da incassare',f.scadenza,'fatture',false)});
+(DB.openhouses||[]).forEach(oh=>{if(oh.data)push('Open House','🏡',oh.id,oh.titolo,(oh.oraInizio?oh.oraInizio+' · ':'')+'evento',oh.data,'openhouse',true)});
+(DB.mandati||[]).forEach(m=>{if(m.stato==='annullato'||m.stato==='risolto')return;const esplicita=m.scadenza||m.dataScadenza;const base=m.dataFirma||m.dataInizio;const d=esplicita||(base?isoLocal(addDays(new Date(String(base).slice(0,10)+'T00:00:00'),90)):'');if(d)push('Mandato','✍️',m.id,m.immobileNome||'Mandato',(m.nomeVenditore||'')+(esplicita?'':' · incarico 90 gg'),d,'mandati',false)});
+return out.sort((a,b)=>(a.gg-b.gg)||a.data.localeCompare(b.data)||a.tipo.localeCompare(b.tipo))}
+function allarmiScadenze(){return raccogliScadenze().filter(it=>it.livello!==null)}
+function scaduteOra(){return raccogliScadenze().filter(it=>it.gg<0)}
+function allarmiPerLivello(){const g={0:[],1:[],2:[],3:[]};allarmiScadenze().forEach(it=>g[it.livello].push(it));return g}
+function aggiornaCampanella(){const btn=document.getElementById('bell-btn');if(!btn)return;const b=document.getElementById('bell-badge');const n=allarmiScadenze().length;
+if(b){if(n>0){b.style.display='inline-flex';b.textContent=n>99?'99+':String(n)}else b.style.display='none'}
+btn.title=n>0?(n+' scadenze in allarme — clicca per il pannello'):'Nessuna scadenza in allarme'}
+function allarmeQuando(it){if(it.gg<0)return it.gg===-1?'scaduta ieri':'scaduta '+fmtDateShort(it.data);if(it.gg===0)return'OGGI';if(it.gg===1)return'domani';return'tra '+it.gg+' giorni'}
+function allarmeRiga(it){const col=it.gg<0?'var(--orange)':ALLARME_COLOR[it.livello];
+return`<div class="scad-row" onclick="closeModal();go('${it.sezione}')"><div class="scad-ico">${it.icon}</div><div class="scad-info"><div class="scad-tit">${esc(it.titolo)}</div><div class="scad-sub">${esc(it.tipo)}${it.dettaglio?' · '+esc(it.dettaglio):''} · ${fmtDateShort(it.data)}</div></div><div class="scad-when" style="color:${col}">${allarmeQuando(it)}</div></div>`}
+function apriPannelloScadenze(){const per=allarmiPerLivello(),sc=scaduteOra(),tot=per[0].length+per[1].length+per[2].length+per[3].length;
+const gruppo=l=>per[l].length?`<div class="scad-group"><div class="scad-head">${ALLARME_ICON[l]} ${ALLARME_LABEL[l]} <span class="badge ${ALLARME_BADGE[l]}">${per[l].length}</span></div>${per[l].map(allarmeRiga).join('')}</div>`:'';
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="scadenze-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>🔔 Pannello scadenze</h2>
+<p class="text-muted text-sm" style="margin-bottom:10px">Allarme automatico su 4 livelli — 3 giorni prima, 2 giorni prima, 1 giorno prima e oggi — per attività, appuntamenti, chiamate, contatti, documenti, fatture, open house e mandati.</p>
+${tot||sc.length?gruppo(0)+gruppo(1)+gruppo(2)+gruppo(3)+(sc.length?`<div class="scad-group"><div class="scad-head">⚠️ Già scadute <span class="badge badge-orange">${sc.length}</span></div>${sc.slice(0,60).map(allarmeRiga).join('')}</div>`:''):'<div class="empty-state"><div class="icon">🎉</div>Nessuna scadenza in allarme: tutto sotto controllo.</div>'}
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="closeModal();go('da-fare')">⚡ Da Fare Oggi</button></div></div></div>`)}
+function riassuntoAllarmiHTML(){const per=allarmiPerLivello(),sc=scaduteOra(),tot=per[0].length+per[1].length+per[2].length+per[3].length;if(!tot&&!sc.length)return'';
+return`<div class="card" id="allarmi-card" style="border-color:rgba(239,68,68,.35)"><div class="row" style="justify-content:space-between;gap:8px;margin-bottom:8px"><div class="card-title" style="margin:0">🔔 Allarmi scadenze (${tot})</div><button class="btn btn-gold btn-sm" onclick="apriPannelloScadenze()">Apri pannello</button></div>
+<div class="row" style="gap:6px;flex-wrap:wrap">${[0,1,2,3].filter(l=>per[l].length).map(l=>`<span class="badge ${ALLARME_BADGE[l]}">${ALLARME_ICON[l]} ${ALLARME_LABEL[l]}: ${per[l].length}</span>`).join('')||'<span class="badge badge-green">✅ nessuna scadenza nei prossimi 3 giorni</span>'}${sc.length?`<span class="badge badge-orange">⚠️ già scadute: ${sc.length}</span>`:''}</div></div>`}
+function notificaAllarmi(){try{const n=allarmiScadenze().length;if(!n)return;const o=today();if(localStorage.getItem('immocrm_allarme_giorno')===o)return;localStorage.setItem('immocrm_allarme_giorno',o);
+showToast('🔔 '+n+(n===1?' scadenza in allarme':' scadenze in allarme')+' (3-2-1 giorni e oggi)','info',5000);
+const btn=document.getElementById('bell-btn');if(btn){btn.classList.add('ring');setTimeout(()=>btn.classList.remove('ring'),700)}
+if(typeof Notification!=='undefined'&&Notification.permission==='granted'){try{new Notification('ImmoCRM — '+n+' scadenze in allarme',{body:'Tocca la campanella 🔔 per il pannello'})}catch(e){}}}catch(e){}}
 function setBadge(id,n){const e=document.getElementById('badge-'+id);if(!e)return;if(n>0){e.style.display='inline-flex';e.textContent=n}else e.style.display='none'}
 function openGlobalSearch(){document.getElementById('search-overlay').style.display='flex';setTimeout(()=>document.getElementById('search-input').focus(),50)}
 function closeGlobalSearch(){document.getElementById('search-overlay').style.display='none';document.getElementById('search-results').innerHTML=''}
@@ -550,6 +610,7 @@ c.innerHTML=`<div class="stack">
 function renderDaFare(c){const o=today();const att=(DB.attivita||[]).filter(a=>!a.done&&a.scadenza<=o);const scad=att.filter(a=>a.scadenza<o);const app=(DB.appuntamenti||[]).filter(a=>a.data===o&&a.stato!=='completato'&&a.stato!=='annullato');
 const rich=(DB.clienti||[]).filter(x=>x.dataRichiamo&&x.dataRichiamo<=o&&x.stato!=='chiuso').sort((a,b)=>(a.dataRichiamo||'').localeCompare(b.dataRichiamo||''));
 c.innerHTML=`<div class="stack">
+${riassuntoAllarmiHTML()}
 ${scad.length?`<div class="card" style="border-color:rgba(239,68,68,.4)"><div class="card-title text-red" style="margin-bottom:10px">⚠️ Scadute (${scad.length})</div>${scad.map(a=>attRow(a,true)).join('')}</div>`:''}
 <div class="card"><div class="card-title" style="margin-bottom:10px">📅 Appuntamenti oggi (${app.length})</div>${app.length?app.map(a=>`<div class="row" style="padding:10px 0;border-bottom:1px solid var(--bg4)"><b style="width:55px;color:var(--primary)">${a.ora}</b><div style="flex:1">${esc(a.titolo)}</div><button class="btn btn-ghost btn-xs" onclick="openAppModal(${a.id})">✏️</button></div>`).join(''):'<div class="empty-state text-sm">Nessuno.</div>'}</div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">☎️ Contatti da richiamare (${rich.length})</div>${rich.length?rich.map(x=>`<div class="row" style="padding:10px 0;border-bottom:1px solid var(--bg4)"><div style="font-size:18px">${x.dataRichiamo<o?'🔴':'📞'}</div><div style="flex:1;min-width:0"><b>${esc(x.nome)} ${esc(x.cognome||'')}</b><div style="font-size:10px;color:var(--text2)">${x.dataRichiamo<o?'<span class="text-red">scaduto '+fmtDateShort(x.dataRichiamo)+'</span>':'oggi'}${x.fonte?' · '+esc(x.fonte):''}${x.collaborativo==='si'?' · collaborativo':''}</div></div>${x.telefono?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${waNumber(x.telefono)}','_self')">📞</button><button class="btn btn-gold btn-xs" onclick="whatsappCliente(${x.id})">💬</button>`:''}<button class="btn btn-ghost btn-xs" onclick="openContattoModal(${x.id})">✏️</button></div>`).join(''):'<div class="empty-state text-sm">Nessun richiamo in scadenza.</div>'}</div>
@@ -987,7 +1048,7 @@ c.innerHTML=`<div class="stack"><div class="grid4">
 <div class="stat-card"><div class="stat-label">Convertiti</div><div class="stat-value">${(DB.chiamate||[]).filter(x=>x.stato==='convertito').length}</div></div>
 <div class="stat-card"><div class="stat-label">Open House</div><div class="stat-value">${(DB.openhouses||[]).length}</div></div>
 <div class="stat-card"><div class="stat-label">Lead</div><div class="stat-value">${(DB.leads||[]).length}</div></div></div></div>`}
-function renderImpostazioni(c){const s=DB.settings||{};setTimeout(caricaStorico,0);
+function renderImpostazioni(c){const s=DB.settings||{};setTimeout(caricaStorico,0);setTimeout(caricaQRSync,0);setTimeout(caricaProtezione,0);
 c.innerHTML=`<div class="stack">
 <div class="card"><div class="card-title" style="margin-bottom:10px">👤 Profilo</div><div class="form-row-3">
 <div class="form-group"><label class="form-label">Nome agente</label><input class="inp" value="${esc(s.agente||'')}" onchange="DB.settings.agente=this.value;save()"></div>
@@ -1003,12 +1064,65 @@ c.innerHTML=`<div class="stack">
 <div class="form-group"><label class="form-label">App sul telefono</label><button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="installaApp()">📲 Installa come app</button></div></div>
 <div class="alert gold" style="margin-top:12px">🔒 <b>Accesso personale.</b> L'accesso è protetto da password (PBKDF2‑SHA256, 210.000 cicli) con blocco dopo 3 tentativi errati. Dopo il periodo di inattività scelto l'app si blocca da sola. I tuoi dati non sono condivisi con nessuno.</div></div>
 ${syncCardHTML()}
+<div class="card" id="protect-card"><div class="card-title" style="margin-bottom:10px">🛡️ Protezione dati — pulizia del computer</div>
+<div id="protect-status" class="text-sm text-muted">Verifico lo stato delle copie…</div>
+<div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+<button class="btn btn-primary btn-sm" id="protect-check-btn" onclick="verificaProtezione()">🧪 Verifica copie</button>
+<button class="btn btn-gold btn-sm" onclick="creaCopiaEmergenza()">💾 Doppia copia ora</button>
+<button class="btn btn-ghost btn-sm" onclick="attivaPersistenza()">🔒 Attiva salvataggio persistente</button></div>
+<div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, "ottimizzatori", ripristino del browser) i dati restano al sicuro: chiediamo al browser il <b>salvataggio persistente</b> (StorageManager.persist), teniamo una <b>doppia copia locale di emergenza</b> oltre a IndexedDB e allo storico dei backup, e — se il cloud è attivo — tutto è anche lì, cifrato. Un dubbio? Premi <b>🧪 Verifica copie</b>: controllo tutto in 2 secondi.</div></div>
 <div class="grid2"><div class="card"><div class="card-title" style="margin-bottom:10px">💾 Backup</div><div class="stack" style="gap:8px">
 <button class="btn btn-gold" onclick="esportaBackup()">📥 Esporta backup</button>
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.4.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.0</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+/* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
+async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
+try{const r=await ImmoSync.verifyStorage();
+const ts=t=>t?new Date(t).toLocaleString('it-IT'):'—';
+el.innerHTML=`<div class="prot-row"><span>🔒 Salvataggio persistente (browser)</span><b>${r.persisted?'<span style="color:var(--green)">attivo ✅</span>':(r.persistSupported?'<span style="color:var(--gold)">da attivare — premi il tasto sotto</span>':'<span class="text-muted">non supportato da questo browser</span>')}</b></div>
+<div class="prot-row"><span>💾 Copia principale</span><b>${r.mainLS&&r.mainLS.ok?'✅ '+ts(r.mainLS.ts):'❌ assente'}</b></div>
+<div class="prot-row"><span>🗄️ IndexedDB · storico (${r.storico} snapshot)</span><b>${r.idb&&r.idb.ok?'✅ '+ts(r.idb.ts):'—'}</b></div>
+<div class="prot-row"><span>🆘 Doppia copia di emergenza</span><b>${(r.emgA&&r.emgA.ok)&&(r.emgB&&r.emgB.ok)?'✅ A+B · '+ts(Math.max(r.emgA.ts,r.emgB.ts)):((r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok))?'⚠️ una sola copia':'<span style="color:var(--red)">❌ assente</span>'}</b></div>`;
+}catch(e){el.textContent='Verifica non disponibile: '+(e&&e.message?e.message:e)}}
+async function verificaProtezione(){
+if(!window.ImmoSync){showToast('Motore di salvataggio non disponibile','error');return}
+let r;try{r=await ImmoSync.verifyStorage()}catch(e){showToast('Verifica fallita','error');return}
+const ts=t=>t?new Date(t).toLocaleString('it-IT'):'—';
+const riga=(ok,t,d)=>`<div class="prot-row"><span>${ok?'✅':'❌'} ${t}</span><b>${d||''}</b></div>`;
+const emgOk=(r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok);
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="protect-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>🧪 Verifica protezione dati</h2>
+<p class="text-muted text-sm" style="margin-bottom:10px">Controllo di tutte le copie salvate su questo dispositivo.</p>
+${riga(!!(r.mainLS&&r.mainLS.ok),'Copia principale (localStorage)',ts(r.mainLS&&r.mainLS.ts))}
+${riga(!!(r.idb&&r.idb.ok),'Copia IndexedDB',ts(r.idb&&r.idb.ts))}
+${riga(!!(r.emgA&&r.emgA.ok),'Copia di emergenza A',ts(r.emgA&&r.emgA.ts))}
+${riga(!!(r.emgB&&r.emgB.ok),'Copia di emergenza B',ts(r.emgB&&r.emgB.ts))}
+${riga(r.storico>0,'Storico backup automatici',(r.storico||0)+' snapshot')}
+${riga(!!r.persisted,'Salvataggio persistente (StorageManager.persist)',r.persisted?'attivo':(r.persistSupported?'da attivare':'non supportato'))}
+${riga(!!r.quota,'Spazio nel browser',(r.usage?(r.usage/1048576).toFixed(1)+' MB usati · ':'')+(r.quota?(r.quota/1048576).toFixed(0)+' MB disponibili':'n/d'))}
+${!(r.mainLS&&r.mainLS.ok)&&emgOk?`<div class="alert orange">⚠️ La copia principale non c'è più (pulizia del PC?): posso ripristinare tutto subito dalla copia di emergenza.</div><button class="btn btn-gold" onclick="ripristinaDaEmergenza()">🆘 Ripristina dalla copia di emergenza</button>`:''}
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>${!r.persisted&&r.persistSupported?'<button class="btn btn-primary" onclick="closeModal();attivaPersistenza()">🔒 Attiva persistente</button>':''}</div></div></div>`)}
+async function ripristinaDaEmergenza(){
+if(!window.ImmoSync){showToast('Non disponibile','error');return}
+const list=ImmoSync.emergencyRead();
+if(!list.length){showToast('Nessuna copia di emergenza trovata','error');return}
+DB=JSON.parse(JSON.stringify(list[0].db));window.DB=DB;_dbReady=true;initDB();
+ImmoSync.adopt(DB);ImmoSync.mirror(DB);
+save();render();updateBadges();closeModal();
+showToast('🆘 Dati ripristinati dalla copia di emergenza ('+new Date(list[0].ts).toLocaleString('it-IT')+')','info',6000)}
+function creaCopiaEmergenza(){
+if(!window.ImmoSync){showToast('Non disponibile','error');return}
+save();
+const ok=ImmoSync.emergencyWrite(DB,true);
+showToast(ok?'🆘 Doppia copia di emergenza creata (A+B)':'⚠️ Copia non riuscita: spazio del browser esaurito?',ok?'success':'error');
+caricaProtezione()}
+async function attivaPersistenza(){
+if(!window.ImmoSync){showToast('Non disponibile','error');return}
+const ok=await ImmoSync.requestPersist();
+window._persisted=ok;
+showToast(ok?'🔒 Salvataggio persistente attivo: il browser non cancellerà i dati con le pulizie automatiche':'ℹ️ Persistenza non concessa adesso: la doppia copia di emergenza protegge comunque i dati',ok?'success':'info',5500);
+caricaProtezione()}
 async function cambiaPassword(){const btn=document.getElementById('sec-chg-btn');
 if(btn){btn.disabled=true;btn.textContent='🔄 Cambio in corso…'}
 try{
@@ -1023,14 +1137,14 @@ showToast('🔑 Password aggiornata e dati ricifrati')
 }finally{if(btn){btn.disabled=false;btn.textContent='🔑 Cambia password'}}}
 function impostaAutoLock(v){const a=getAuth()||{};a.lockMin=parseInt(v,10)||0;saveAuth(a);armaLock();showToast('Blocco automatico: '+(a.lockMin?a.lockMin+' minuti':'disattivato'))}
 function resetTotale(){if(!confirm('Eliminare TUTTI i dati da questo dispositivo? Se la sincronizzazione cloud è attiva i dati torneranno al prossimo sync.'))return;
-if(!confirm('Conferma definitiva: cancello archivio locale, storico e sessione.'))return;
-try{localStorage.removeItem(KEY);localStorage.removeItem('immocrm_snap_v1');localStorage.removeItem(AUTH_KEY);localStorage.removeItem('immocrm_ls_main');localStorage.removeItem('immocrm_ls_hist');localStorage.removeItem('immocrm_ls_key')}catch(e){}
+if(!confirm('Conferma definitiva: cancello archivio locale, copie di emergenza, storico e sessione.'))return;
+try{localStorage.removeItem(KEY);localStorage.removeItem('immocrm_snap_v1');localStorage.removeItem(AUTH_KEY);localStorage.removeItem('immocrm_ls_main');localStorage.removeItem('immocrm_ls_hist');localStorage.removeItem('immocrm_ls_key');localStorage.removeItem('immocrm_allarme_giorno');localStorage.removeItem('immocrm_persist_notice');if(window.ImmoSync&&ImmoSync.emergencyClear)ImmoSync.emergencyClear()}catch(e){}
 if(window.indexedDB&&indexedDB.databases){indexedDB.databases().then(l=>{(l||[]).forEach(d=>{if(d.name==='immocrm')indexedDB.deleteDatabase('immocrm')})}).catch(()=>{})}
 location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.3',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.0',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1044,12 +1158,14 @@ const S=ImmoSync.status(),cfg=ImmoSync.config();
 const stati={off:['💾','Solo questo dispositivo','var(--text2)'],idle:['⏸️','In attesa','var(--text2)'],syncing:['⏳','Sincronizzo…','var(--blue)'],ok:['✅','Sincronizzato','var(--green)'],error:['⚠️','Problema','var(--red)']};
 const st=stati[S.state]||stati.off;
 const off=navigator.onLine===false;
+const collegato=cloudCollegato(cfg); // v10.5: per QR + avviso "non collegato"
 const disp=DB._devices||{};
 const dispRows=Object.keys(disp).map(k=>`<div class="row" style="justify-content:space-between;padding:8px 10px;background:var(--bg2);border-radius:8px;margin-bottom:6px"><div><b class="text-sm">${esc(disp[k].name||'Dispositivo')}</b>${k===ImmoSync.deviceId()?' <span class="badge badge-green">questo</span>':''}<div style="font-size:10px;color:var(--text2)">ultimo sync ${disp[k].ts?new Date(disp[k].ts).toLocaleString('it-IT'):'—'}</div></div></div>`).join('')||'<div class="text-sm text-muted">Nessun dispositivo ha ancora sincronizzato.</div>';
 return `<div class="card" id="sync-card"><div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
 <div><div class="card-title" style="font-size:15px">☁️ Sincronizzazione multi‑dispositivo</div>
 <div class="card-subtitle">Gli stessi dati (contatti, immobili, incroci, agenda) su PC, tablet e smartphone</div></div>
 <div class="row-tight"><span class="badge" style="background:${st[2]}22;color:${st[2]}">${st[0]} ${st[1]}</span>${off?'<span class="badge badge-orange">📴 offline</span>':''}</div></div>
+${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 12px">⚠️ <b>Questo dispositivo non è ancora collegato al cloud.</b> I dati restano salvati solo qui (con doppia copia di emergenza). Per averli anche su telefono e tablet: inserisci il <b>Token GitHub</b> e premi <b>🔗 Collega e sincronizza</b>, oppure incolla il <b>codice dispositivo</b> generato da un tuo dispositivo già collegato.</div>`:''}
 <div class="form-row-3">
 <div class="form-group"><label class="form-label">Dove salvo i dati</label><select class="inp" id="sy-mode">
 <option value="off" ${cfg.mode==='off'?'selected':''}>💾 Solo questo dispositivo</option>
@@ -1074,6 +1190,10 @@ return `<div class="card" id="sync-card"><div class="row" style="justify-content
 <button class="btn btn-ghost" onclick="mostraCodiceSync()">📤 Genera codice dispositivo</button></div>
 <div id="sy-msg" style="margin-top:10px;font-size:12px;min-height:18px;color:${S.state==='error'?'var(--red)':'var(--text2)'}">${S.lastError?('⚠️ '+esc(S.lastError)):('Ultimo salvataggio nel cloud: '+(S.lastPush?new Date(S.lastPush).toLocaleString('it-IT'):'mai')+' · Ultimo controllo: '+(S.lastPull?new Date(S.lastPull).toLocaleString('it-IT'):'mai'))}</div>
 <div class="divider"></div>
+<div class="row" style="gap:16px;flex-wrap:wrap;align-items:flex-start;margin-bottom:4px">
+<div style="flex:0 0 auto"><div class="card-title" style="margin-bottom:8px">📱 QR — collega il telefono</div><div id="sy-qr" class="text-sm text-muted">Preparo il QR…</div></div>
+<div style="flex:1;min-width:230px"><div class="card-title" style="margin-bottom:8px">Come funziona</div><div class="text-sm" style="color:var(--text2);line-height:1.7">Inquadra il QR con la fotocamera del telefono: <b>l'app si apre col codice dispositivo già inserito</b> — sul telefono dovrai scrivere <b>solo la password</b>. Niente token da ricopiare, niente errori di copia‑incolla.</div><button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="mostraQRSync()">🔍 Mostra QR grande</button></div></div>
+<div class="divider"></div>
 <div class="grid2">
 <div><div class="card-title" style="margin-bottom:8px">📱 Dispositivi collegati</div>${dispRows}</div>
 <div><div class="card-title" style="margin-bottom:8px">🕓 Backup automatici su questo dispositivo</div><div id="sy-hist" class="text-sm text-muted">Carico lo storico…</div></div></div>
@@ -1089,6 +1209,33 @@ return `<div class="card" id="sync-card"><div class="row" style="justify-content
 <div class="alert gold">🔐 Il token resta solo su questo dispositivo. Con il permesso <code>gist</code> può scrivere unicamente i tuoi archivi personali: non tocca repository né account. Se un giorno vuoi revocarlo: github.com → Settings → Developer settings → Tokens → Delete.<br>Il <b>codice dispositivo</b> contiene anche la chiave di cifratura: chi lo possiede può leggere i dati. Non condividerlo; se lo perdi, rigenerane uno dalle Impostazioni.</div>
 </details></div>`}
 function syncMsg(t,col){const e=document.getElementById('sy-msg');if(e){e.textContent=t;e.style.color=col||'var(--text2)'}}
+/* ---------- v10.5: QR per collegare il telefono in un'inquadratura ---------- */
+function cloudCollegato(cfg){const c=cfg||(window.ImmoSync?ImmoSync.config():null);if(!c)return false;
+if(c.mode==='gist')return!!(c.token&&String(c.token).trim());
+if(c.mode==='rest')return!!(c.restUrl&&String(c.restUrl).trim());
+return false}
+function qrAppUrl(code){try{return location.origin+location.pathname+'#codice='+encodeURIComponent(code||'')}catch(e){return''}}
+function qrBoxHTML(testo,larg){try{if(!window.ImmoSync||!ImmoSync.qr)return'';return`<div class="qr-box" style="width:${larg||220}px">${ImmoSync.qr.svg(testo,{ec:'M'})}</div>`}catch(e){return''}}
+async function caricaQRSync(){const box=document.getElementById('sy-qr');if(!box)return;
+if(!window.ImmoSync||!ImmoSync.qr){box.innerHTML='<div class="text-sm text-muted">QR non disponibile in questo browser.</div>';return}
+if(!cloudCollegato()){box.innerHTML='<div class="text-sm text-muted">Prima collega il cloud (Token GitHub → <b>Collega e sincronizza</b>): il QR conterrà il codice dispositivo e sul telefono basterà la password.</div>';return}
+let c=null;try{c=await ImmoSync.connectCode({pass:(getAuth()||{}).pass||null})}catch(e){c=null}
+if(!c){box.innerHTML='<div class="text-sm text-muted">Codice non disponibile ora: riprova dopo il collegamento.</div>';return}
+box.innerHTML=qrBoxHTML(qrAppUrl(c),168)+'<div class="text-sm" style="margin-top:6px;color:var(--text2)">Inquadra col telefono: codice già inserito, chiederà solo la password.</div>'}
+async function mostraQRSync(){
+if(!window.ImmoSync)return;
+if(!cloudCollegato()){syncMsg('⚠️ Questo dispositivo non è ancora collegato al cloud: collega prima, poi genero il QR','var(--red)');return}
+let c=null;try{c=await ImmoSync.connectCode({pass:(getAuth()||{}).pass||null})}catch(e){c=null}
+if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e sincronizza")','var(--red)');return}
+const url=qrAppUrl(c);
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>📱 QR — collega il telefono</h2>
+<p class="text-muted text-sm" style="margin-bottom:12px">Inquadra questo QR con la fotocamera del telefono: <b>l'app si apre col codice dispositivo già inserito</b>. Sul telefono dovrai scrivere <b>solo la password</b> e premere Accedi. Il QR contiene il permesso di collegamento: trattalo come la password, non condividerlo.</p>
+<div style="text-align:center">${qrBoxHTML(url,260)}</div>
+<div class="text-sm text-muted" id="qr-link" style="margin-top:10px;word-break:break-all;font-size:10px">${esc(url)}</div>
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaLinkQR()">📋 Copia link</button></div></div></div>`)}
+function copiaLinkQR(){const el=document.getElementById('qr-link');if(!el)return;const t=el.textContent||'';
+if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(()=>showToast('📋 Link copiato')).catch(()=>fallbackCopia(t))}else fallbackCopia(t)}
+function fallbackCopia(t){try{const ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();showToast('📋 Link copiato')}catch(e){showToast('Copia non riuscita: seleziona il link a mano','error')}}
 async function syncCollega(){const prima=ImmoSync.config();
 const eraPrimo=(prima.mode==='off'||!prima.token);
 const patch={mode:document.getElementById('sy-mode').value,token:document.getElementById('sy-token').value.trim(),gistId:document.getElementById('sy-gist').value.trim(),restUrl:document.getElementById('sy-rest').value.trim(),autoPullMin:parseInt(document.getElementById('sy-min').value,10)||5,encrypt:document.getElementById('sy-enc').value==='1'};
@@ -1123,6 +1270,7 @@ if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e 
 document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>📱 Codice dispositivo</h2>
 <p class="text-muted text-sm" style="margin-bottom:10px">Sullo smartphone o tablet: apri ImmoCRM, inserisci la tua <b>password</b> e incolla questo codice (in Accesso, o in Impostazioni → Sincronizzazione → "Usa codice"). Con lui basta il codice: <b>niente token</b>. Il codice contiene anche la chiave di cifratura: trattalo come la password e non condividerlo. Se cambi password o archivio, rigeneralo.</p>
 <textarea class="inp" id="codice-sync" rows="5" readonly onclick="this.select()" style="font-size:11px;word-break:break-all">${c}</textarea>
+<div style="text-align:center;margin-top:12px">${qrBoxHTML(qrAppUrl(c),180)}<div class="text-sm text-muted" style="margin-top:6px">📱 v10.5: in alternativa inquadra il QR col telefono — il codice arriva già inserito, servirà solo la password.</div></div>
 <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaCodiceSync()">📋 Copia</button></div></div></div>`)}
 function copiaCodiceSync(){const el=document.getElementById('codice-sync');if(!el)return;el.select();
 try{document.execCommand('copy');showToast('📋 Codice copiato')}catch(e){}
@@ -1172,10 +1320,15 @@ documenti:renderDocumenti,fatture:renderFatture,'report-sett':renderReportSett,
 'report-prop':renderReportProp,marketing:renderMarketing,statistiche:renderStatistiche,
 impostazioni:renderImpostazioni
 });
-if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot();BOOT_DB=b?b.db:null}catch(e){console.warn('boot sync',e)}}
+if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot();BOOT_DB=b?b.db:null;window._bootSource=b?b.source:''}catch(e){console.warn('boot sync',e)}}
+/* v10.5: protezione da pulizia del PC — chiediamo SUBITO il salvataggio
+   persistente al browser e segnaliamo l'eventuale ripristino d'emergenza. */
+try{if(window.ImmoSync&&ImmoSync.requestPersist)ImmoSync.requestPersist().then(p=>{window._persisted=!!p;
+if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem('immocrm_persist_notice','1');showToast('🔒 Salvataggio persistente attivo: i dati resistono alle pulizie del browser','info',5500)}}).catch(()=>{})}catch(e){}
+if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristinati dalla copia di emergenza: la copia principale era stata cancellata (pulizia del PC?)','info',8000),900);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.4.1','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.0','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);

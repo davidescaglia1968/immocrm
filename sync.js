@@ -693,19 +693,40 @@ function boot() {
 function readBootDB() {
   var lsDB = null;
   try { var raw = localStorage.getItem(mainLsKey); if (raw) lsDB = JSON.parse(raw); } catch (e) { lsDB = null; }
-  return idbGet('main', 'db').then(function (idbDB) {
-    var best = null, fresh = true;
-    if (lsDB && idbDB) best = (idbDB._ts || 0) > (lsDB._ts || 0) ? idbDB : lsDB;
+  return idbGet('main', 'db').then(function (mainRec) {
+    /* v10.5: 'main' contiene l'inviluppo {db, ts} scritto da mirror() —
+       qui lo scartocciamo (prima il confronto usava ._ts che non esiste
+       nell'inviluppo: con la sola copia IndexedDB il boot partiva vuoto). */
+    var idbDB = null, idbTs = 0;
+    if (mainRec && typeof mainRec === 'object') {
+      if (mainRec.db && typeof mainRec.db === 'object') { idbDB = mainRec.db; idbTs = mainRec.ts || mainRec.db._ts || 0; }
+      else if (!mainRec.ts) { idbDB = mainRec; idbTs = mainRec._ts || 0; } /* formato diretto legacy */
+    }
+    var lsTs = (lsDB && lsDB._ts) || 0;
+    var best = null, source = 'nuovo';
+    if (lsDB && idbDB) best = idbTs > lsTs ? idbDB : lsDB;
     else best = idbDB || lsDB || null;
-    fresh = !best;
-    localFresh = fresh;
-    return { db: best, fresh: fresh, source: best ? ((idbDB && best === idbDB) ? 'indexeddb' : 'localstorage') : 'nuovo' };
+    if (best) source = (idbDB && best === idbDB) ? 'indexeddb' : 'localstorage';
+    else {
+      /* v10.5: copia principale E IndexedDB vuote (pulizia del PC?) →
+         proviamo il fallback del mirror (LS_MAIN) e poi la doppia copia
+         di emergenza. */
+      var lsm = lsGet(LS_MAIN);
+      if (lsm && lsm.db && typeof lsm.db === 'object') { best = lsm.db; source = 'localstorage'; }
+      else {
+        var emg = emergencyRead();
+        if (emg.length) { best = emg[0].db; source = 'emergenza'; }
+      }
+    }
+    localFresh = !best;
+    return { db: best, fresh: !best, source: source };
   });
 }
 
 /* ---------- mirror locale + storico ---------- */
 function mirror(db) {
   var payload = { db: db, ts: db._ts || now() };
+  emergencyWrite(db, false);   /* v10.5: doppia copia di emergenza (throttled) */
   return idbPut('main', 'db', payload).then(function (ok) {
     if (!ok) lsSet(LS_MAIN, payload);
     return maybeSnapshot(db);
@@ -875,9 +896,355 @@ function startAuto() {
   }, min * 60 * 1000);
 }
 
+/* =====================================================================
+   v10.5 — GENERATORE QR CODE INTEGRATO (nessuna libreria esterna:
+   l'app funziona anche offline). Byte mode, versioni 1-40, livelli
+   L/M/Q/H. Serve per mostrare nel pannello Sincronizzazione un QR che
+   apre l'app sul telefono col codice dispositivo GIA' INSERITO
+   (#codice=IMMOCRM1.…): sul telefono basta scrivere la password.
+   Tabelle blocchi/ECC: ISO/IEC 18004 (stesse della letteratura nota).
+   ===================================================================== */
+var QR_EC_INDEX = { L: 0, M: 1, Q: 2, H: 3 };
+/* righe = livello ECC (L,M,Q,H) — colonne = versione 1..40 (indice 0 = padding) */
+var QR_ECC_PER_BLOCK = [
+  [-1, 7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+  [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28],
+  [-1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30],
+  [-1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 24, 24, 30, 28, 28, 26, 28, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30]
+];
+var QR_NUM_BLOCKS = [
+  [-1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4, 4, 4, 4, 4, 6, 6, 6, 6, 7, 8, 8, 9, 9, 10, 12, 12, 12, 13, 14, 15, 16, 17, 18, 19, 19, 20, 21, 22, 24, 25],
+  [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49],
+  [-1, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8, 8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68],
+  [-1, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81]
+];
+var QR_FORMAT_BITS = [1, 0, 3, 2]; /* L,M,Q,H → bit nel formato */
+function qrGetBit(x, i) { return ((x >>> i) & 1) !== 0; }
+function qrRawModules(ver) {
+  var r = (16 * ver + 128) * ver + 64;
+  if (ver >= 2) {
+    var na = Math.floor(ver / 7) + 2;
+    r -= (25 * na - 10) * na - 55;
+    if (ver >= 7) r -= 36;
+  }
+  return r;
+}
+function qrDataCodewords(ver, ecl) {
+  return Math.floor(qrRawModules(ver) / 8) - QR_ECC_PER_BLOCK[ecl][ver] * QR_NUM_BLOCKS[ecl][ver];
+}
+function qrAlignPositions(ver) {
+  if (ver === 1) return [];
+  var na = Math.floor(ver / 7) + 2;
+  var step = (ver === 32) ? 26 : Math.ceil((ver * 4 + 4) / (na * 2 - 2)) * 2;
+  var res = [6], pos;
+  for (pos = ver * 4 + 10; res.length < na; pos -= step) res.splice(1, 0, pos);
+  return res;
+}
+function qrRsMultiply(x, y) {
+  var z = 0, i;
+  for (i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; }
+  return z;
+}
+function qrRsDivisor(degree) {
+  var res = [], i, j, root = 1;
+  for (i = 0; i < degree - 1; i++) res.push(0);
+  res.push(1);
+  for (i = 0; i < degree; i++) {
+    for (j = 0; j < res.length; j++) {
+      res[j] = qrRsMultiply(res[j], root);
+      if (j + 1 < res.length) res[j] ^= res[j + 1];
+    }
+    root = qrRsMultiply(root, 0x02);
+  }
+  return res;
+}
+function qrRsRemainder(data, divisor) {
+  var res = divisor.map(function () { return 0; }), i, j;
+  for (i = 0; i < data.length; i++) {
+    var factor = data[i] ^ res.shift();
+    res.push(0);
+    for (j = 0; j < divisor.length; j++) res[j] ^= qrRsMultiply(divisor[j], factor);
+  }
+  return res;
+}
+function qrAppendBits(val, len, bb) { for (var i = len - 1; i >= 0; i--) bb.push((val >>> i) & 1); }
+function qrCci(ver) { return ver <= 9 ? 8 : 16; } /* byte mode: 8 bit (v1-9), 16 bit (v10-40) */
+function qrUtf8Bytes(s) {
+  if (typeof TextEncoder !== 'undefined') {
+    var u = new TextEncoder().encode(s), out0 = [], i0;
+    for (i0 = 0; i0 < u.length; i0++) out0.push(u[i0]);
+    return out0;
+  }
+  var out = [], i;
+  for (i = 0; i < s.length; i++) {
+    var c = s.codePointAt(i); if (c > 0xFFFF) i++;
+    if (c < 0x80) out.push(c);
+    else if (c < 0x800) out.push(0xC0 | (c >> 6), 0x80 | (c & 63));
+    else if (c < 0x10000) out.push(0xE0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+    else out.push(0xF0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
+  }
+  return out;
+}
+function qrAddEcc(data, ver, ecl) {
+  var numBlocks = QR_NUM_BLOCKS[ecl][ver];
+  var eccLen = QR_ECC_PER_BLOCK[ecl][ver];
+  var raw = Math.floor(qrRawModules(ver) / 8);
+  var numShort = numBlocks - raw % numBlocks;
+  var shortLen = Math.floor(raw / numBlocks);
+  var div = qrRsDivisor(eccLen);
+  var blocks = [], k = 0, i, j;
+  for (i = 0; i < numBlocks; i++) {
+    var datLen = shortLen - eccLen + (i < numShort ? 0 : 1);
+    var dat = data.slice(k, k + datLen); k += datLen;
+    var ecc = qrRsRemainder(dat, div);
+    if (i < numShort) dat.push(0); /* segnaposto per l'interleave */
+    blocks.push(dat.concat(ecc));
+  }
+  var out = [];
+  for (i = 0; i < blocks[0].length; i++) {
+    for (j = 0; j < blocks.length; j++) {
+      if (i !== shortLen - eccLen || j >= numShort) out.push(blocks[j][i]);
+    }
+  }
+  return out;
+}
+function qrPenalty(mod, size) {
+  var N1 = 3, N2 = 3, N3 = 40, N4 = 10, result = 0, x, y;
+  function addHist(len, hist) { if (hist[0] === 0) len += size; hist.pop(); hist.unshift(len); }
+  function countPat(hist) {
+    var n = hist[1];
+    var core = n > 0 && hist[2] === n && hist[3] === n * 3 && hist[4] === n && hist[5] === n;
+    return (core && hist[0] >= n * 4 && hist[6] >= n ? 1 : 0) + (core && hist[6] >= n * 4 && hist[0] >= n ? 1 : 0);
+  }
+  function termCount(color, len, hist) { if (color) { addHist(len, hist); len = 0; } len += size; addHist(len, hist); return countPat(hist); }
+  for (y = 0; y < size; y++) {
+    var runColor = false, runX = 0, hist = [0, 0, 0, 0, 0, 0, 0];
+    for (x = 0; x < size; x++) {
+      if (mod[y][x] === runColor) { runX++; if (runX === 5) result += N1; else if (runX > 5) result++; }
+      else { addHist(runX, hist); if (!runColor) result += countPat(hist) * N3; runColor = mod[y][x]; runX = 1; }
+    }
+    result += termCount(runColor, runX, hist) * N3;
+  }
+  for (x = 0; x < size; x++) {
+    var runColor2 = false, runY = 0, hist2 = [0, 0, 0, 0, 0, 0, 0];
+    for (y = 0; y < size; y++) {
+      if (mod[y][x] === runColor2) { runY++; if (runY === 5) result += N1; else if (runY > 5) result++; }
+      else { addHist(runY, hist2); if (!runColor2) result += countPat(hist2) * N3; runColor2 = mod[y][x]; runY = 1; }
+    }
+    result += termCount(runColor2, runY, hist2) * N3;
+  }
+  for (y = 0; y < size - 1; y++) {
+    for (x = 0; x < size - 1; x++) {
+      var col = mod[y][x];
+      if (col === mod[y][x + 1] && col === mod[y + 1][x] && col === mod[y + 1][x + 1]) result += N2;
+    }
+  }
+  var dark = 0;
+  for (y = 0; y < size; y++) for (x = 0; x < size; x++) if (mod[y][x]) dark++;
+  var total = size * size;
+  var k = Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1;
+  result += k * N4;
+  return result;
+}
+function qrEncode(text, ecName) {
+  var eclIdx = QR_EC_INDEX[String(ecName || 'M').toUpperCase().charAt(0)];
+  if (eclIdx === undefined) eclIdx = 1;
+  var bytes = qrUtf8Bytes(String(text == null ? '' : text));
+  var ver, i;
+  for (ver = 1; ver <= 40; ver++) {
+    if (4 + qrCci(ver) + bytes.length * 8 <= qrDataCodewords(ver, eclIdx) * 8) break;
+  }
+  if (ver > 40) throw new SyncError(0, 'QR: testo troppo lungo (oltre la versione 40)');
+  var bb = [];
+  qrAppendBits(4, 4, bb); /* byte mode */
+  qrAppendBits(bytes.length, qrCci(ver), bb);
+  for (i = 0; i < bytes.length; i++) qrAppendBits(bytes[i], 8, bb);
+  var cap = qrDataCodewords(ver, eclIdx) * 8;
+  qrAppendBits(0, Math.min(4, cap - bb.length), bb);
+  while (bb.length % 8 !== 0) bb.push(0);
+  var data = [];
+  for (i = 0; i < bb.length; i += 8) {
+    var b = 0, j;
+    for (j = 0; j < 8; j++) b = (b << 1) | bb[i + j];
+    data.push(b);
+  }
+  for (i = 0; data.length * 8 < cap; i++) data.push(i % 2 === 0 ? 0xEC : 0x11);
+  return qrDraw(qrAddEcc(data, ver, eclIdx), ver, eclIdx);
+}
+function qrDraw(allCw, ver, ecl) {
+  var size = ver * 4 + 17, mod = [], fun = [], y, x, i;
+  for (y = 0; y < size; y++) { mod.push(new Array(size).fill(false)); fun.push(new Array(size).fill(false)); }
+  function setF(x2, y2, dark) { mod[y2][x2] = dark; fun[y2][x2] = true; }
+  for (i = 0; i < size; i++) { setF(6, i, i % 2 === 0); setF(i, 6, i % 2 === 0); } /* timing */
+  function finder(cx, cy) {
+    for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+      var dist = Math.max(Math.abs(dx), Math.abs(dy)), xx = cx + dx, yy = cy + dy;
+      if (xx >= 0 && xx < size && yy >= 0 && yy < size) setF(xx, yy, dist !== 2 && dist !== 4);
+    }
+  }
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  var ap = qrAlignPositions(ver), n = ap.length, j;
+  for (i = 0; i < n; i++) for (j = 0; j < n; j++) {
+    if ((i === 0 && j === 0) || (i === 0 && j === n - 1) || (i === n - 1 && j === 0)) continue;
+    for (var dy2 = -2; dy2 <= 2; dy2++) for (var dx2 = -2; dx2 <= 2; dx2++)
+      setF(ap[j] + dx2, ap[i] + dy2, Math.max(Math.abs(dx2), Math.abs(dy2)) !== 1);
+  }
+  function drawFormat(mask) {
+    var dataF = (QR_FORMAT_BITS[ecl] << 3) | mask, rem = dataF, t;
+    for (t = 0; t < 10; t++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    var bits = ((dataF << 10) | rem) ^ 0x5412;
+    for (t = 0; t <= 5; t++) setF(8, t, qrGetBit(bits, t));
+    setF(8, 7, qrGetBit(bits, 6)); setF(8, 8, qrGetBit(bits, 7)); setF(7, 8, qrGetBit(bits, 8));
+    for (t = 9; t < 15; t++) setF(14 - t, 8, qrGetBit(bits, t));
+    for (t = 0; t < 8; t++) setF(size - 1 - t, 8, qrGetBit(bits, t));
+    for (t = 8; t < 15; t++) setF(8, size - 15 + t, qrGetBit(bits, t));
+    setF(8, size - 8, true); /* modulo sempre scuro */
+  }
+  function drawVersion() {
+    if (ver < 7) return;
+    var rem = ver, t;
+    for (t = 0; t < 12; t++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+    var bits = (ver << 12) | rem;
+    for (t = 0; t < 18; t++) {
+      var bit = qrGetBit(bits, t), a = size - 11 + t % 3, b = Math.floor(t / 3);
+      setF(a, b, bit); setF(b, a, bit);
+    }
+  }
+  drawFormat(0); drawVersion();
+  var bi = 0, right, vert;
+  for (right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (vert = 0; vert < size; vert++) {
+      for (j = 0; j < 2; j++) {
+        x = right - j;
+        var upward = ((right + 1) & 2) === 0;
+        y = upward ? size - 1 - vert : vert;
+        if (!fun[y][x] && bi < allCw.length * 8) { mod[y][x] = qrGetBit(allCw[bi >>> 3], 7 - (bi & 7)); bi++; }
+      }
+    }
+  }
+  function maskBit(m, xx, yy) {
+    switch (m) {
+      case 0: return (xx + yy) % 2 === 0;
+      case 1: return yy % 2 === 0;
+      case 2: return xx % 3 === 0;
+      case 3: return (xx + yy) % 3 === 0;
+      case 4: return (Math.floor(xx / 3) + Math.floor(yy / 2)) % 2 === 0;
+      case 5: return (xx * yy) % 2 + (xx * yy) % 3 === 0;
+      case 6: return ((xx * yy) % 2 + (xx * yy) % 3) % 2 === 0;
+      default: return ((xx + yy) % 2 + (xx * yy) % 3) % 2 === 0;
+    }
+  }
+  function applyMask(m) {
+    for (var yy2 = 0; yy2 < size; yy2++) for (var xx2 = 0; xx2 < size; xx2++)
+      if (!fun[yy2][xx2] && maskBit(m, xx2, yy2)) mod[yy2][xx2] = !mod[yy2][xx2];
+  }
+  var bestMask = 0, bestPen = Infinity, m2;
+  for (m2 = 0; m2 < 8; m2++) {
+    applyMask(m2); drawFormat(m2);
+    var pen = qrPenalty(mod, size);
+    if (pen < bestPen) { bestPen = pen; bestMask = m2; }
+    applyMask(m2); /* XOR è involutivo: annulla la maschera di prova */
+  }
+  applyMask(bestMask); drawFormat(bestMask);
+  return { version: ver, ecl: 'LMQH'.charAt(ecl), mask: bestMask, size: size, modules: mod };
+}
+function qrMatrix(text, ec) { return qrEncode(text, ec || 'M'); }
+function qrSvg(text, opts) {
+  opts = opts || {};
+  var q = (text && typeof text === 'object' && text.modules) ? text : qrEncode(text, opts.ec || 'M');
+  var border = opts.border === undefined ? 4 : opts.border;
+  var dim = q.size + border * 2, path = '', y, x;
+  for (y = 0; y < q.size; y++) for (x = 0; x < q.size; x++)
+    if (q.modules[y][x]) path += 'M' + (x + border) + ' ' + (y + border) + 'h1v1h-1z';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + dim + ' ' + dim + '" shape-rendering="crispEdges" role="img" aria-label="QR code ImmoCRM">' +
+    '<rect width="' + dim + '" height="' + dim + '" fill="#ffffff"/><path d="' + path + '" fill="#000000"/></svg>';
+}
+
+/* =====================================================================
+   v10.5 — PROTEZIONE DATI DA PULIZIA DEL COMPUTER
+   1) StorageManager.persist(): chiediamo al browser il salvataggio
+      PERSISTENTE → niente cancellazione automatica dei dati quando
+      il browser "fa pulizie" o lo spazio si esaurisce.
+   2) DOPPIA COPIA LOCALE DI EMERGENZA: a ogni mirror i dati finiscono
+      anche in due chiavi localStorage separate (A e B). Se un
+      programma di pulizia cancella la copia principale, al boot
+      ripristiniamo dalla copia di emergenza più recente.
+   ===================================================================== */
+var EMG_A = 'immocrm_emg_a', EMG_B = 'immocrm_emg_b';
+var EMG_MIN_GAP = 30 * 1000;   /* al massimo una doppia copia ogni 30 s */
+var _lastEmg = 0;
+function emergencyWrite(db, force) {
+  db = db || (hooks.getDb ? hooks.getDb() : null);
+  if (!db || typeof db !== 'object') return false;
+  if (!force && now() - _lastEmg < EMG_MIN_GAP) return false;
+  var payload = { ts: db._ts || now(), emg: 1, db: db };
+  var a = lsSet(EMG_A, payload), b = lsSet(EMG_B, payload);
+  if (a || b) _lastEmg = now();
+  return !!(a && b);
+}
+function emgValid(v) {
+  return !!(v && v.db && typeof v.db === 'object' && !Array.isArray(v.db) &&
+    (arrayCols(v.db).length > 0 || v.db.settings || v.db._ts));
+}
+function emergencyRead() {
+  var slots = [['a', EMG_A], ['b', EMG_B]], out = [], i;
+  for (i = 0; i < slots.length; i++) {
+    var v = lsGet(slots[i][1]);
+    if (emgValid(v)) out.push({ slot: slots[i][0], ts: v.ts || (v.db && v.db._ts) || 0, db: v.db });
+  }
+  out.sort(function (p, q) { return q.ts - p.ts; });
+  return out;
+}
+function emergencyClear() {
+  try { localStorage.removeItem(EMG_A); localStorage.removeItem(EMG_B); } catch (e) { /* noop */ }
+  _lastEmg = 0;
+}
+function requestPersist() {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist)
+      return Promise.resolve(navigator.storage.persist()).then(function (r) { return !!r; }).catch(function () { return false; });
+  } catch (e) { /* noop */ }
+  return Promise.resolve(false);
+}
+function isPersisted() {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persisted)
+      return Promise.resolve(navigator.storage.persisted()).then(function (r) { return !!r; }).catch(function () { return false; });
+  } catch (e) { /* noop */ }
+  return Promise.resolve(false);
+}
+function verifyStorage() {
+  var rep = { mainLS: { ok: false, ts: 0, size: 0 }, idb: { ok: false, ts: 0 }, emgA: { ok: false, ts: 0 }, emgB: { ok: false, ts: 0 }, storico: 0, persisted: false, persistSupported: false, usage: 0, quota: 0, ok: false };
+  try {
+    var raw = localStorage.getItem(mainLsKey);
+    if (raw) { var d = JSON.parse(raw); rep.mainLS = { ok: !!(d && typeof d === 'object'), ts: (d && d._ts) || 0, size: raw.length }; }
+  } catch (e) { /* resta ok:false */ }
+  try {
+    var ea = lsGet(EMG_A), eb = lsGet(EMG_B);
+    if (emgValid(ea)) rep.emgA = { ok: true, ts: ea.ts || 0 };
+    if (emgValid(eb)) rep.emgB = { ok: true, ts: eb.ts || 0 };
+  } catch (e2) { /* resta ok:false */ }
+  rep.persistSupported = !!(typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist);
+  return idbGet('main', 'db').then(function (m) {
+    if (m && m.db && typeof m.db === 'object') rep.idb = { ok: true, ts: m.ts || m.db._ts || 0 };
+    return historyList();
+  }).then(function (h) {
+    rep.storico = h.length;
+    return isPersisted();
+  }).then(function (p) {
+    rep.persisted = !!p;
+    return storageInfo();
+  }).then(function (si) {
+    rep.usage = si.usage; rep.quota = si.quota;
+    rep.ok = !!(rep.mainLS.ok || rep.idb.ok || rep.emgA.ok || rep.emgB.ok);
+    return rep;
+  }).catch(function () { return rep; });
+}
+
 /* ---------- API pubblica ---------- */
 var Sync = {
-  version: '1.0',
+  version: '1.1',
   boot: boot,
   track: track,
   rebaseline: rebaseline,
@@ -994,6 +1361,25 @@ var Sync = {
   historyList: historyList,
   historyGet: historyGet,
   storageInfo: storageInfo,
+  /* v10.5 — QR code (generatore integrato, funziona anche offline):
+     apre l'app sul telefono col codice dispositivo già inserito. */
+  qr: {
+    matrix: qrMatrix,
+    svg: qrSvg,
+    encode: qrEncode,
+    dataCodewords: function (ver, ec) {
+      var e = QR_EC_INDEX[String(ec || 'M').toUpperCase().charAt(0)];
+      return qrDataCodewords(ver, e === undefined ? 1 : e);
+    }
+  },
+  /* v10.5 — protezione dati da pulizia del computer:
+     persistenza browser + doppia copia locale di emergenza + verifica. */
+  requestPersist: requestPersist,
+  isPersisted: isPersisted,
+  verifyStorage: verifyStorage,
+  emergencyWrite: function (db, force) { return emergencyWrite(db, !!force); },
+  emergencyRead: emergencyRead,
+  emergencyClear: emergencyClear,
   mergeDB: mergeDB,
   track_: track,
   providers: { gist: providers.gist.label, rest: providers.rest.label },
@@ -1026,6 +1412,14 @@ var Sync = {
     deviceLabel: deviceLabel,
     FILE_NAME: FILE_NAME,
     KDF_ITER: KDF_ITER,
+    /* v10.5: chiavi delle copie di emergenza + tabelle QR (per i test) */
+    EMG_A: EMG_A,
+    EMG_B: EMG_B,
+    LS_MAIN: LS_MAIN,
+    QR_ECC_PER_BLOCK: QR_ECC_PER_BLOCK,
+    QR_NUM_BLOCKS: QR_NUM_BLOCKS,
+    qrRawModules: qrRawModules,
+    qrAlignPositions: qrAlignPositions,
     ghTimeout: function (ms) { if (ms) GH_TIMEOUT = ms; return GH_TIMEOUT; }
   }
 };

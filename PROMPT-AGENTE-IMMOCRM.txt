@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.1 · 22/09/2026 · riferito alla v10.4.1)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.2 · 24/09/2026 · riferito alla v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -19,7 +19,7 @@ COME INIZIARE (tu, agente)
   3. Poi, nell'ordine: sync.js COMPLETO → le zone di app.js indicate in
      sezione 3 → tests/run.cjs (per capire come si verifica).
   4. npm install (se serve) e npm test: TUTTI i test verdi prima di tutto
-     (alla v10.4.1: 82/82).
+     (alla v10.5.0: 118/118).
   5. Domande di chiarimento all'utente: massimo 2. Poi si lavora.
   6. Chiudi sempre con la checklist della sezione 10.
 
@@ -44,7 +44,7 @@ personale (PC, tablet, smartphone) di Scaglia Davide — Piacenza.
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione   : v10.4 (settembre 2026) — è quella sul main
+Versione   : v10.5.0 (settembre 2026) — è quella sul main
 Publishing : GitHub Pages legge dal branch MAIN (chiamato "principale"
              nell'interfaccia in italiano), path "/". Pubblicare =
              far arrivare i file su main, in uno dei due modi:
@@ -69,6 +69,9 @@ Stack      : PWA statica, SENZA build e SENZA librerie esterne.
   - LEGGIMI-CARICA-SU-GITHUB.txt  (guida per l'utente, da tenere aggiornata)
 Dati locali: localStorage (chiave 'immocrm_pro_v10') + IndexedDB 'immocrm'
              (store: main, history, keyring, meta) + backup auto ogni 20 min
+             + v10.5: DOPPIA copia di emergenza (chiavi 'immocrm_emg_a/b',
+             scritte da mirror() con throttle 30 s) e richiesta di
+             salvataggio persistente (StorageManager.persist) a ogni boot
 Cloud      : Gist privato GitHub, file immocrm.json, cifrato AES-256-GCM;
              chiave derivata con PBKDF2-SHA256 (KDF_ITER) dalla password
              + SALE master CONDIVISA (stessa su tutti i dispositivi)
@@ -171,14 +174,51 @@ d) FUNZIONI sync.js pubbliche da conoscere:
    ensureMasterKey, unlockWithPassword, rekeyFromEnvelope, lockMaster,
    unlockFromCloud    (v10.4: verifica la password sull'archivio cloud),
    rekeyWithPassword  (v10.4: ricifra l'archivio con una nuova password),
-   historyList, historyGet, storageInfo, mergeDB, onState, _internal
-   (per i test: setHooks, setSnap, cfg…).
+   historyList, historyGet, storageInfo, mergeDB, onState,
+   qr (v10.5: matrix/svg/encode/dataCodewords — generatore QR integrato,
+     byte mode, versioni 1-40, livelli L/M/Q/H, nessuna libreria esterna),
+   requestPersist, isPersisted, verifyStorage,
+   emergencyWrite, emergencyRead, emergencyClear   (v10.5: protezione
+     dati da pulizia del PC),
+   _internal (per i test: setHooks, setSnap, cfg, EMG_A/EMG_B, LS_MAIN,
+     tabelle QR…).
 e) MERGE: record-level "ultimo aggiornamento vince" (updatedAt) +
    tombstone per le eliminazioni; campi non-array (es. settings) via
    _fieldTs. Dopo un pull remoto: applicaDbRemoto → ImmoSync.adopt()
    (rebaseline) — altrimenti ogni record sembrerebbe modificato.
    applicaDbRemoto aggiorna anche il record password locale da
    DB.settings.passRec (v10.4).
+f) v10.5 — TRE BLOCCHI NUOVI (non romperli):
+   - ALLARMI SCADENZE (app.js, sezione "ALLARMI SCADENZE"):
+     raccogliScadenze() legge 8 aree (attività, appuntamenti, chiamate,
+     contatti, documenti, fatture, open house, mandati) e calcola
+     giorniMancanti(); livelloAllarme() = 3/2/1/0 (3 giorni prima, 2,
+     1, oggi), negativi = "scadute". Campanella 🔔 in topbar
+     (#bell-btn/#bell-badge): aggiornaCampanella() è chiamata da
+     updateBadges() e render(). Pannello: apriPannelloScadenze().
+     Riassunto in "Da Fare Oggi": riassuntoAllarmiHTML() dentro
+     renderDaFare. Mandati senza scadenza esplicita: dataFirma + 90 gg.
+     Appuntamenti e open house passati NON vanno in "scadute"
+     (eventi, non incombenze). Toast giornaliero: notificaAllarmi()
+     (una volta al giorno, chiave 'immocrm_allarme_giorno').
+   - QR DISPOSITIVO: sync.js contiene il generatore QR (Sync.qr.*);
+     il pannello Sincronizzazione mostra il QR (#sy-qr, caricato da
+     caricaQRSync()) con URL <origin><pathname>#codice=<codice>.
+     All'avvio leggiCodiceDaURL() (chiamata da checkLoginRequired)
+     legge l'hash, precompila #login-code e mostra #qr-code-hint:
+     sul telefono basta la password. Dispositivo NON collegato al
+     cloud → avviso #sy-avviso-cloud (cloudCollegato(cfg)).
+     Il QR contiene il codice = permesso di collegamento: stesso
+     livello di segretezza della sezione 3c.
+   - PROTEZIONE DATI (sync.js + card "🛡️ Protezione dati" in
+     Impostazioni): requestPersist() a ogni boot; mirror() scrive la
+     doppia copia di emergenza (throttle 30 s); readBootDB() recupera
+     da LS_MAIN o dalle copie ('emergenza') se principale+IndexedDB
+     sono vuote, e SCARTOCCIA l'inviluppo {db,ts} di IndexedDB 'main'
+     (bug pre-v10.5: boot da sola IndexedDB → dati persi).
+     verifyStorage() → pulsante "🧪 Verifica copie" (verificaProtezione).
+     resetTotale() DEVE cancellare anche le copie (emergencyClear),
+     altrimenti il reset "resuscita" i dati.
 
 --------------------------------------------------------------------------------
 4) INVARIANTI (se una modifica le viola: STOP e avvisami)

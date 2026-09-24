@@ -18,14 +18,14 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="preconnect" href="https://api.github.com" crossorigin>
-<title>ImmoCRM Pro v10.4.1 — Scaglia · Piacenza</title>
+<title>ImmoCRM Pro v10.5.0 — Scaglia · Piacenza</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
-<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.4.1 · Real Estate Operating System</div></div>
+<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.0 · Real Estate Operating System</div></div>
 <div id="login-form">
 <div class="login-field"><label>Password</label><input type="password" id="login-pass" inputmode="text" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
 <button class="login-btn" id="login-btn" onclick="doLogin()">🔐 Accedi</button>
@@ -36,7 +36,8 @@
 </div>
 <div id="login-code-wrap" style="display:none">
 <div class="login-field" style="margin-top:10px"><label>Codice dispositivo <span style="opacity:.6">· dai tuoi altri dispositivi</span></label><input type="text" id="login-code" autocomplete="off" spellcheck="false" placeholder="IMMOCRM1.…"></div>
-<div class="login-hint">Apri l'app su un dispositivo che funziona → <b>Sincronizzazione</b> → "📤 Genera codice dispositivo" → incollalo qui. Serve solo una volta: poi basterà sempre la password.</div>
+<div class="login-hint" id="qr-code-hint" style="display:none">✅ <b>Codice ricevuto dal QR: è già inserito.</b> Scrivi solo la password e premi "🔐 Accedi".</div>
+<div class="login-hint">Apri l'app su un dispositivo che funziona → <b>Sincronizzazione</b> → "📤 Genera codice dispositivo" → incollalo qui (oppure inquadra il <b>QR</b>: fa tutto da solo). Serve solo una volta: poi basterà sempre la password.</div>
 </div>
 <div id="login-recupero" style="display:none">
 <div class="setup-banner" style="margin-top:6px">🔑 Recupero password</div>
@@ -73,7 +74,7 @@
 </aside>
 <div id="sidebar-backdrop" onclick="document.getElementById('sidebar').classList.remove('mobile-open')"></div>
 <div id="main">
-<header id="topbar"><button id="hamburger" class="btn-ghost" aria-label="Menu" onclick="document.getElementById('sidebar').classList.toggle('mobile-open')">☰</button><h2 id="page-title">Regia</h2><span id="topbar-date" class="topbar-meta"></span><span id="save-indicator" class="topbar-save">✓</span><button id="sync-pill" class="sync-pill local" onclick="go('impostazioni')" title="Stato sincronizzazione"><span class="sp-ico">💾</span><span class="sp-txt">solo locale</span></button><button class="btn-ghost" aria-label="Cerca" onclick="openGlobalSearch()">🔍</button><button class="btn-gold" onclick="topAdd()">+ Aggiungi</button></header>
+<header id="topbar"><button id="hamburger" class="btn-ghost" aria-label="Menu" onclick="document.getElementById('sidebar').classList.toggle('mobile-open')">☰</button><h2 id="page-title">Regia</h2><span id="topbar-date" class="topbar-meta"></span><span id="save-indicator" class="topbar-save">✓</span><button id="bell-btn" class="bell-btn" onclick="apriPannelloScadenze()" title="Allarmi scadenze" aria-label="Allarmi scadenze">🔔<span id="bell-badge" class="bell-badge" style="display:none">0</span></button><button id="sync-pill" class="sync-pill local" onclick="go('impostazioni')" title="Stato sincronizzazione"><span class="sp-ico">💾</span><span class="sp-txt">solo locale</span></button><button class="btn-ghost" aria-label="Cerca" onclick="openGlobalSearch()">🔍</button><button class="btn-gold" onclick="topAdd()">+ Aggiungi</button></header>
 <div id="content" class="fade-up"></div>
 </div>
 </div>
