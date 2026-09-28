@@ -97,7 +97,7 @@ function saveAuth(a){try{localStorage.setItem(AUTH_KEY,JSON.stringify(a))}catch(
 // v10.3: verifica la password contro un hash PBKDF2 condiviso (viene dal codice dispositivo)
 async function verificaConHash(rec,p){const h=await pbkdf2(p,rec.salt,rec.iter||PBK_ITER);return !!h&&h===rec.hash}
 function initDB(){
-['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture'].forEach(k=>{if(!DB[k])DB[k]=[]});
+['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture','vendite'].forEach(k=>{if(!DB[k])DB[k]=[]});
 if(!DB.obiettivi)DB.obiettivi={incarichiSettimana:1,incarichiMese:4,chiamateGiorno:10};
 if(!DB.regia)DB.regia={data:today(),fatte:[],saltate:[]};
 if(!DB.actionPlans)DB.actionPlans=[];
@@ -737,8 +737,10 @@ document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick
 <div class="form-group"><label class="form-label">Codice</label><input id="im-cod" class="inp" value="${esc(i.codice||'')}"></div>
 <div class="form-group"><label class="form-label">Titolo *</label><input id="im-tit" class="inp" value="${esc(i.titolo||'')}"></div>
 <div class="form-group"><label class="form-label">Tipo</label><select id="im-tipo" class="inp">${TIPO_IMM.map(t=>`<option value="${t}" ${i.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
-<div class="form-group"><label class="form-label">Prezzo *</label><input id="im-prezzo" type="number" class="inp" value="${i.prezzo||''}"></div>
+<div class="form-group"><label class="form-label">Prezzo pubblicato *</label><input id="im-prezzo" type="number" class="inp" value="${i.prezzo||''}"></div>
 <div class="form-group"><label class="form-label">Prezzo iniziale</label><input id="im-prezzoin" type="number" class="inp" value="${i.prezzoIniziale||''}"></div>
+<div class="form-group"><label class="form-label">Prezzo di vendita</label><input id="im-vendita" type="number" class="inp" value="${i.prezzoVendita||''}" placeholder="Solo se venduto"></div>
+<div class="form-group"><label class="form-label">Data vendita</label><input id="im-datavend" type="date" class="inp" value="${i.dataVendita||''}"></div>
 <div class="form-group"><label class="form-label">Mq</label><input id="im-mq" type="number" class="inp" value="${i.superficie||''}"></div>
 <div class="form-group"><label class="form-label">Locali</label><input id="im-loc" type="number" class="inp" value="${i.locali||''}"></div>
 <div class="form-group"><label class="form-label">Bagni</label><input id="im-bag" type="number" class="inp" value="${i.bagni||''}"></div>
@@ -754,12 +756,19 @@ function tabImm(t){const i=(DB.immobili||[]).find(x=>String(x.id)===String(curre
 if(t==='match'){const m=matchAcquirentiPerImmobile(i);el.innerHTML=m.length?m.slice(0,8).map(x=>`<div class="row" style="padding:8px 0;border-bottom:1px solid var(--bg4)"><div style="flex:1"><b>${esc(x.c.nome)} ${esc(x.c.cognome)}</b><div style="font-size:10px;color:var(--text2)">budget ${fmtEuroShort(x.c.budgetMax||x.c.budget)}</div></div><span class="badge badge-green">${x.score}</span><button class="btn btn-gold btn-xs" onclick="whatsappCliente(${x.c.id})">💬</button></div>`).join(''):'<div class="empty-state text-sm">Nessun match.</div>'}
 else if(t==='omi'){const z=getZonaInfo(i);if(!z||!i.superficie){el.innerHTML='<div class="empty-state text-sm">Servono zona OMI e mq.</div>';return}const mid=z.mqMid*i.superficie;const diff=((i.prezzo-mid)/mid)*100;el.innerHTML=`<div class="grid3"><div class="stat-box"><div class="stat-num">${fmtEuroShort(mid)}</div><div class="stat-lbl">valore OMI</div></div><div class="stat-box"><div class="stat-num">${fmtEuroShort(i.prezzo)}</div><div class="stat-lbl">prezzo attuale</div></div><div class="stat-box"><div class="stat-num" style="color:${diff>5?'var(--red)':diff<-5?'var(--green)':'var(--primary)'}">${diff>0?'+':''}${diff.toFixed(1)}%</div><div class="stat-lbl">scarto</div></div></div>`}
 else{el.innerHTML=(i.storicoPrezzi||[]).length?`<div class="table-wrap"><table class="table"><tbody>${i.storicoPrezzi.map(s=>`<tr><td>${fmtDate(s.data)}</td><td>${fmtEuroShort(s.prezzo)}</td><td>${s.deltaPct?s.deltaPct+'%':'—'}</td><td>${esc(s.evento||'')}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty-state text-sm">Nessuno storico.</div>'}}
+function registraVenditaDaImmobile(imm){if(!imm||!(imm.prezzoVendita>0))return;if(!DB.vendite)DB.vendite=[];
+const key=String(imm.id);let rec=DB.vendite.find(v=>String(v.immobileId)===key);
+const row={id:rec?rec.id:('v'+Date.now()),immobileId:imm.id,titolo:imm.titolo||'',zona:imm.zona||'',citta:imm.citta||'',tipo:imm.tipo||'',mq:imm.superficie||0,locali:imm.locali||0,prezzoPubblicato:imm.prezzoPubblicato||imm.prezzo||0,prezzoVendita:imm.prezzoVendita,dataVendita:imm.dataVendita||today(),fonte:'mio incarico',nota:''};
+if(rec)Object.assign(rec,row);else DB.vendite.push(row)}
+function rimuoviVenditaImmobile(id){DB.vendite=(DB.vendite||[]).filter(v=>String(v.immobileId)!==String(id))}
 function saveImmobile(id){const g=v=>document.getElementById(v).value;
 const old=id?(DB.immobili||[]).find(x=>String(x.id)===String(id)):null;
-const d={codice:g('im-cod').trim()||('PC-'+Date.now().toString().slice(-6)),titolo:g('im-tit').trim(),tipo:g('im-tipo'),prezzo:parseFloat(g('im-prezzo'))||0,prezzoIniziale:parseFloat(g('im-prezzoin'))||parseFloat(g('im-prezzo'))||0,superficie:parseFloat(g('im-mq'))||0,locali:parseInt(g('im-loc'))||0,bagni:parseInt(g('im-bag'))||0,stato:g('im-stato'),fonte:g('im-fonte'),citta:g('im-citta').trim(),zona:g('im-zona').trim(),proprietarioId:parseInt(g('im-prop'))||null,descrizione:g('im-desc').trim(),operazione:'vendita'};
-if(!d.titolo||!d.prezzo||!d.citta){showToast('Titolo, prezzo, città obbligatori','error');return}
-if(id&&old){if(old.prezzo>0&&d.prezzo<old.prezzo){d.storicoPrezzi=old.storicoPrezzi||[];d.storicoPrezzi.push({data:today(),prezzo:d.prezzo,deltaPct:Math.round((d.prezzo-old.prezzo)/old.prezzo*1000)/10,evento:'Ribasso'})}else d.storicoPrezzi=old.storicoPrezzi||[];DB.immobili[DB.immobili.findIndex(x=>String(x.id)===String(id))]={...old,...d};showToast('Aggiornato ✓')}
-else{d.id=Date.now();d.dataInserimento=today();d.data_pubblicazione=today();d.visite=0;d.storicoPrezzi=[{data:today(),prezzo:d.prezzo,deltaPct:0,evento:'Inserimento'}];DB.immobili.push(d);showToast('Creato ✓')}
+const d={codice:g('im-cod').trim()||('PC-'+Date.now().toString().slice(-6)),titolo:g('im-tit').trim(),tipo:g('im-tipo'),prezzo:parseFloat(g('im-prezzo'))||0,prezzoIniziale:parseFloat(g('im-prezzoin'))||parseFloat(g('im-prezzo'))||0,prezzoVendita:parseFloat(g('im-vendita'))||0,dataVendita:g('im-datavend')||'',superficie:parseFloat(g('im-mq'))||0,locali:parseInt(g('im-loc'))||0,bagni:parseInt(g('im-bag'))||0,stato:g('im-stato'),fonte:g('im-fonte'),citta:g('im-citta').trim(),zona:g('im-zona').trim(),proprietarioId:parseInt(g('im-prop'))||null,descrizione:g('im-desc').trim(),operazione:'vendita'};
+if(!d.titolo||!d.prezzo||!d.citta){showToast('Titolo, prezzo pubblicato e città sono obbligatori','error');return}
+if(d.stato==='venduto'){if(old&&old.stato!=='venduto'){d.prezzoPubblicato=old.prezzo||d.prezzo;d.prezzo=d.prezzoPubblicato}else d.prezzoPubblicato=d.prezzo;if(!d.prezzoVendita){showToast('Scrivi il prezzo di vendita. Il prezzo pubblicato resta quello di sopra.','error');return}if(!d.dataVendita)d.dataVendita=today()}
+else{if(old&&old.stato==='venduto'){d.prezzoVendita=0;d.dataVendita=''}d.prezzoPubblicato=d.prezzo}
+if(id&&old){d.storicoPrezzi=old.storicoPrezzi||[];if(old.prezzo>0&&d.prezzo<old.prezzo&&old.stato!=='venduto')d.storicoPrezzi.push({data:today(),prezzo:d.prezzo,deltaPct:Math.round((d.prezzo-old.prezzo)/old.prezzo*1000)/10,evento:'Ribasso'});if(old.stato!=='venduto'&&d.stato==='venduto')d.storicoPrezzi.push({data:d.dataVendita,prezzo:d.prezzoVendita,deltaPct:d.prezzoPubblicato?Math.round((d.prezzoVendita-d.prezzoPubblicato)/d.prezzoPubblicato*1000)/10:0,evento:'Venduto'});const ix=DB.immobili.findIndex(x=>String(x.id)===String(id));DB.immobili[ix]={...old,...d};if(d.stato==='venduto')registraVenditaDaImmobile(DB.immobili[ix]);else rimuoviVenditaImmobile(id);showToast(d.stato==='venduto'?'Vendita registrata ✓':'Aggiornato ✓')}
+else{d.id=Date.now();d.dataInserimento=today();d.data_pubblicazione=today();d.visite=0;d.prezzoPubblicato=d.prezzo;d.storicoPrezzi=[{data:today(),prezzo:d.prezzo,deltaPct:0,evento:'Inserimento'}];if(d.stato==='venduto')d.storicoPrezzi.push({data:d.dataVendita,prezzo:d.prezzoVendita,deltaPct:0,evento:'Venduto'});DB.immobili.push(d);if(d.stato==='venduto')registraVenditaDaImmobile(d);showToast(d.stato==='venduto'?'Vendita registrata ✓':'Creato ✓')}
 save();closeModal();render()}
 function deleteImmobile(id){if(!confirm('Eliminare?'))return;DB.immobili=DB.immobili.filter(x=>String(x.id)!==String(id));save();closeModal();render()}
 /* MANDATI */
@@ -845,7 +854,7 @@ function mercatoUltimo(){const t=DB.mercato.trimestri;return t[t.length-1]}
 function mercatoYoY(u){const t=DB.mercato.trimestri;const[y,q]=u.p.split('-Q');const p=t.find(x=>x.p===(+y-1)+'-Q'+q);return p?{prov:(u.prov-p.prov)/p.prov*100,prezzo:(u.prezzoMq-p.prezzoMq)/p.prezzoMq*100}:{prov:0,prezzo:0}}
 function renderMercato(c){const m=DB.mercato;const u=mercatoUltimo();const yoy=mercatoYoY(u);const g=Math.max(0,daysSince(m.ultimoAggiornamento));const stale=g>100;
 c.innerHTML=`<div class="stack">
-<div class="card"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><div><div class="card-title" style="font-size:17px">📉 Compravendite Piacenza 2025/2026</div><div class="card-subtitle">Fonte OMI – Agenzia Entrate + ISTAT · elaborazione automatica</div></div><div class="row-tight"><span class="badge ${stale?'badge-red':'badge-green'}">${stale?'⚠️ aggiorna ('+g+'gg)':'✅ agg. '+ageText(m.ultimoAggiornamento)}</span><button class="btn btn-gold btn-sm" onclick="stampaReportMercato()">🖨️ Report</button></div></div>
+<div class="card"><div class="row" style="justify-content:space-between;flex-wrap:wrap"><div><div class="card-title" style="font-size:17px">📉 Compravendite Piacenza 2025/2026</div><div class="card-subtitle">Numeri scritti nel programma. Non è un collegamento all'Agenzia delle Entrate.</div></div><div class="row-tight"><span class="badge ${stale?'badge-red':'badge-green'}">${stale?'⚠️ aggiorna ('+g+'gg)':'✅ agg. '+ageText(m.ultimoAggiornamento)}</span><button class="btn btn-gold btn-sm" onclick="stampaReportMercato()">🖨️ Report</button></div></div>
 ${stale?`<div class="alert red" style="margin-top:10px">⚠️ Dati OMI da aggiornare. <button class="btn btn-success btn-sm" onclick="segnaMercatoAggiornato()">✓ Ho verificato</button></div>`:''}</div>
 <div class="grid4"><div class="stat-card"><div class="stat-label">NTN Provincia (${u.p})</div><div class="stat-value">${u.prov}</div><div class="stat-sub ${yoy.prov>=0?'text-green':'text-red'}">${yoy.prov>=0?'+':''}${yoy.prov.toFixed(1)}% YoY</div></div><div class="stat-card"><div class="stat-label">NTN Comune</div><div class="stat-value">${u.comune}</div></div><div class="stat-card"><div class="stat-label">€/mq città</div><div class="stat-value">${fmtEuroShort(u.prezzoMq)}</div><div class="stat-sub ${yoy.prezzo>=0?'text-green':'text-red'}">${yoy.prezzo>=0?'+':''}${yoy.prezzo.toFixed(1)}% YoY</div></div><div class="stat-card"><div class="stat-label">Tasso mutui</div><div class="stat-value">${u.tassoMutui}%</div></div></div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">📋 Serie trimestrale</div><div class="table-wrap"><table class="table"><thead><tr><th>Periodo</th><th>NTN Prov</th><th>NTN Comune</th><th>€/mq</th><th>Giorni</th><th>Sconto</th></tr></thead><tbody>${m.trimestri.map(t=>`<tr><td><b>${t.p}</b></td><td>${t.prov}</td><td>${t.comune}</td><td>${fmtEuroShort(t.prezzoMq)}</td><td>${t.giorniMedi}</td><td>${t.scontoMedio}%</td></tr>`).join('')}</tbody></table></div></div>
@@ -866,7 +875,7 @@ const res=document.getElementById('risultatoConfronto');if(!res)return;
 if(zoneConfronto.length>=2){const st=zoneConfronto.map(n=>ZONE_PIACENZA.find(x=>x.nome===n)).filter(Boolean);res.innerHTML=`<div class="alert green"><b>📊 Sintesi:</b> Range € ${Math.min(...st.map(s=>s.mqMin))}–€ ${Math.max(...st.map(s=>s.mqMax))}/mq · Più economica: <b>${esc(st.reduce((a,b)=>a.mqMid<b.mqMid?a:b).nome)}</b> · Più cara: <b>${esc(st.reduce((a,b)=>a.mqMid>b.mqMid?a:b).nome)}</b></div>`}else res.innerHTML=''}
 function segnaMercatoAggiornato(){DB.mercato.ultimoAggiornamento=today();save();render();showToast('📊 Aggiornamento registrato')}
 function stampaReportMercato(){const m=DB.mercato;const w=window.open('','_blank');if(!w)return;
-w.document.write('<html><head><title>Report mercato</title><style>body{font-family:Georgia,serif;padding:36px}h1{border-bottom:3px solid #c9a96e}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border:1px solid #ddd;padding:7px;font-size:12px}th{background:#f5f0e6}</style></head><body><h1>📉 Compravendite Piacenza</h1><p>Generato '+fmtDate(today())+' · Fonte OMI/ISTAT</p><table><tr><th>Periodo</th><th>NTN Prov</th><th>NTN Comune</th><th>€/mq</th><th>Giorni</th></tr>'+m.trimestri.map(t=>`<tr><td>${t.p}</td><td>${t.prov}</td><td>${t.comune}</td><td>${t.prezzoMq}</td><td>${t.giorniMedi}</td></tr>`).join('')+'</table><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()}
+w.document.write('<html><head><title>Report mercato</title><style>body{font-family:Georgia,serif;padding:36px}h1{border-bottom:3px solid #c9a96e}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border:1px solid #ddd;padding:7px;font-size:12px}th{background:#f5f0e6}</style></head><body><h1>📉 Compravendite Piacenza</h1><p>Generato '+fmtDate(today())+' · Numeri fissi del programma, non un estratto OMI</p><table><tr><th>Periodo</th><th>NTN Prov</th><th>NTN Comune</th><th>€/mq</th><th>Giorni</th></tr>'+m.trimestri.map(t=>`<tr><td>${t.p}</td><td>${t.prov}</td><td>${t.comune}</td><td>${t.prezzoMq}</td><td>${t.giorniMedi}</td></tr>`).join('')+'</table><script>window.onload=function(){window.print()}<\/script></body></html>');w.document.close()}
 /* VALUTATORE */
 const PESI={principale:1,balcone:.3,terrazzo:.35,giardino:.1,cantina:.25,box:.5,postoAutoCoperto:.4,postoAutoScoperto:.2};
 const CLASSE_IMPACT={A4:1.15,A3:1.13,A2:1.11,A1:1.09,B:1.05,C:1,D:.97,E:.93,F:.88,G:.83};
@@ -874,10 +883,37 @@ const COEFF={piano:{con:{seminterrato:-25,terra:-10,primo:-10,secondo:-3,terzo:0
 const STEPS=['📍 Zona','🏠 Tipologia','⚡ Caratteristiche','📐 Pertinenze','🎨 Qualità','🏙️ Mercato','🎯 Risultato'];
 function vtd(k,v){V.dati[k]=v}
 function getOmiRange(z){const x=ZONE_PIACENZA.find(y=>y.nome.toLowerCase()===(z||'').toLowerCase());return x?{min:x.mqMin,mid:x.mqMid,max:x.mqMax,fonte:x.fonte,affittoMq:x.affittoMq}:{min:1000,mid:1500,max:2000,fonte:'stima',affittoMq:4}}
-function getComparabili(d){const out=[];(DB.immobili||[]).filter(im=>im.tipo===d.tipo&&im.stato!=='venduto').forEach(im=>{let s=50;if(im.zona&&d.zona&&im.zona.toLowerCase()===d.zona.toLowerCase())s+=25;if(im.superficie&&d.mq&&Math.abs(im.superficie-d.mq)/d.mq<.2)s+=10;out.push({...im,score:s})});
-if(out.length<3&&d.zona){const omi=getOmiRange(d.zona);const sb=d.mq||80;[0,-8,5].forEach((sc,i)=>{out.push({codice:'BORSINO-'+(i+1),titolo:(d.locali||3)+' locali - '+d.zona,zona:d.zona,superficie:sb,locali:d.locali,prezzo:Math.round(omi.mid*(1+sc/100)*sb),score:65-i*3})})}
-return out.sort((a,b)=>b.score-a.score).slice(0,5)}
-RENDERERS.valutatore=function(c){c.innerHTML=`<div class="stack"><div class="card" style="background:linear-gradient(135deg,#0a0c14,#111520);border-color:rgba(201,169,110,.2)"><div id="wizardSteps" class="wizard-steps"></div><div id="wizardBody"></div><div class="row" style="margin-top:18px;justify-content:space-between" id="navButtons"></div></div></div>`;V={step:1,dati:{},risultato:null};vtPaint()};
+function limite36(){const x=new Date();x.setMonth(x.getMonth()-36);return isoLocal(x)}
+function stessaZona(a,b){return !!(a&&b&&String(a).toLowerCase().trim()===String(b).toLowerCase().trim())}
+function venditeRecenti(){const lim=limite36();return (DB.vendite||[]).filter(v=>v&&v.prezzoVendita>0&&v.prezzoPubblicato>0&&(!v.dataVendita||v.dataVendita>=lim))}
+function scontoVendita(v){if(!v||!v.prezzoPubblicato)return null;return Math.round((v.prezzoVendita-v.prezzoPubblicato)/v.prezzoPubblicato*1000)/10}
+function mediaMq(arr,campo){const ok=(arr||[]).filter(v=>v.mq>0&&v[campo]>0);if(!ok.length)return 0;return Math.round(ok.reduce((s,v)=>s+v[campo]/v.mq,0)/ok.length)}
+function htmlVenditeValutazione(d){const tutte=venditeRecenti();const zona=d&&d.zona?tutte.filter(v=>stessaZona(v.zona,d.zona)):[];const lista=(zona.length?zona:tutte).slice().sort((a,b)=>(b.dataVendita||'').localeCompare(a.dataVendita||'')).slice(0,8);
+if(!tutte.length)return '<div class="card"><h3 style="color:var(--gold)">Quando si vende</h3><div style="font-size:13px;color:var(--text2);line-height:1.6">Ancora nessuna vendita segnata. Il valutatore tiene il prezzo che era pubblicato e il prezzo a cui è andata via. Sulle tue case: apri l\'immobile, stato Venduto, e scrivi il prezzo di vendita. Su una casa di altri: Aggiungi vendita vista, in alto.</div></div>';
+const base=zona.length?zona:tutte;const pub=mediaMq(base,'prezzoPubblicato'),ven=mediaMq(base,'prezzoVendita');
+const titolo=zona.length?('In '+esc(d.zona)+', sulle vendite segnate'):'Nessuna vendita segnata in questa zona. Ultime che conosco';
+const righe=lista.map(v=>{const sc=scontoVendita(v);return '<div class="comp-card"><div class="comp-card-row"><div><b>'+esc(v.zona||'—')+'</b> '+esc(v.titolo||'')+'<div style="font-size:11px;color:var(--text2)">'+esc(v.fonte||'')+' · '+(v.dataVendita?fmtDate(v.dataVendita):'senza data')+(v.mq?' · '+v.mq+' mq':'')+'</div></div><div style="text-align:right;font-size:12px"><div>Pubblicato <b>'+fmtEuro(v.prezzoPubblicato)+'</b></div><div>Venduto <b style="color:var(--gold)">'+fmtEuro(v.prezzoVendita)+'</b></div>'+(sc!=null?'<div style="color:var(--text2)">'+(sc>0?'+':'')+sc+'% sul pubblicato</div>':'')+'</div></div></div>'}).join('');
+return '<div class="card"><h3 style="color:var(--gold)">Quanto era pubblicato, e a quanto è andata</h3><div style="font-size:13px;margin-bottom:8px">'+titolo+'. Media pubblicato <b>'+(pub?fmtEuro(pub)+'/mq':'—')+'</b> · media venduto <b>'+(ven?fmtEuro(ven)+'/mq':'—')+'</b>. Ultimi 36 mesi. Non sono tutti i rogiti di Piacenza.</div>'+righe+'</div>'}
+function htmlAnnunciZona(d){if(!d||!d.zona)return '';const ann=(DB.immobili||[]).filter(i=>stessaZona(i.zona,d.zona)&&(i.stato==='disponibile'||i.stato==='trattativa')&&i.prezzo>0);
+if(!ann.length)return '<div class="card"><h3 style="color:var(--gold)">In pubblicazione ora</h3><div style="font-size:13px;color:var(--text2)">In '+esc(d.zona)+' non hai annunci aperti. I prezzi pubblicati delle case già vendute sono nella scheda sopra.</div></div>';
+const media=mediaMq(ann.map(i=>({mq:i.superficie||0,prezzo:i.prezzo})),'prezzo');
+return '<div class="card"><h3 style="color:var(--gold)">In pubblicazione ora, non venduto</h3><div style="font-size:13px;margin-bottom:8px">I tuoi annunci in '+esc(d.zona)+(media?' · chiesto in media '+fmtEuro(media)+'/mq':'')+'. Non è il prezzo di vendita.</div>'+ann.slice(0,6).map(i=>'<div class="comp-card"><div class="comp-card-row"><div><b>'+esc(i.titolo||'')+'</b><div style="font-size:11px;color:var(--text2)">'+esc(i.stato)+' · '+(i.superficie||'—')+' mq</div></div><div><b>'+fmtEuro(i.prezzo)+'</b></div></div></div>').join('')+'</div>'}
+function paintVenditeBox(){const el=document.getElementById('vendite-box');if(!el)return;const tutte=venditeRecenti().slice().sort((a,b)=>(b.dataVendita||'').localeCompare(a.dataVendita||''));
+const righe=tutte.slice(0,5).map(v=>{const x=document.createElement('div');x.className='row';x.style.cssText='padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;align-items:center';
+const left=document.createElement('div');left.style.flex='1';left.innerHTML='<b>'+esc(v.zona||'—')+'</b> '+esc(v.titolo||'')+'<div style="font-size:11px;color:var(--text2)">'+esc(v.fonte||'')+' · '+(v.dataVendita?fmtDate(v.dataVendita):'')+'</div>';
+const right=document.createElement('div');right.style.textAlign='right';right.innerHTML='pubblicato '+fmtEuro(v.prezzoPubblicato)+'<br>venduto <b>'+fmtEuro(v.prezzoVendita)+'</b>';
+x.appendChild(left);x.appendChild(right);
+if(v.fonte==='annuncio visto'){const b=document.createElement('button');b.className='btn btn-ghost btn-xs';b.textContent='✕';b.onclick=function(){eliminaVenditaVista(v.id)};x.appendChild(b)}
+return x});
+el.innerHTML='<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><div><div class="card-title" style="font-size:17px">Vendite che il valutatore conosce</div><div class="card-subtitle">'+(tutte.length?tutte.length+' negli ultimi 36 mesi, con prezzo pubblicato e prezzo di vendita':'Nessuna ancora. Si riempie quando segni una casa Venduto, o con Aggiungi vendita vista.')+'</div></div><button class="btn btn-gold btn-sm" type="button" id="btn-vendita-vista">+ Aggiungi vendita vista</button></div><div id="vendite-righe"></div>';
+const box=document.getElementById('vendite-righe');righe.forEach(n=>box.appendChild(n));
+const btn=document.getElementById('btn-vendita-vista');if(btn)btn.onclick=openVenditaVista}
+function openVenditaVista(){const zone=ZONE_PIACENZA.map(z=>'<option value="'+esc(z.nome)+'">').join('');
+document.body.insertAdjacentHTML('beforeend','<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>Vendita vista</h2><p style="font-size:13px;color:var(--text2);margin:8px 0 12px">Scrivi il prezzo che era pubblicato e il prezzo a cui è andata via. Se non conosci il venduto, non salvarla.</p><div class="form-row"><div class="form-group"><label class="form-label">Zona *</label><input id="vv-zona" class="inp" list="zdl2"><datalist id="zdl2">'+zone+'</datalist></div><div class="form-group"><label class="form-label">Mq</label><input id="vv-mq" type="number" class="inp"></div><div class="form-group"><label class="form-label">Prezzo pubblicato *</label><input id="vv-pub" type="number" class="inp"></div><div class="form-group"><label class="form-label">Prezzo di vendita *</label><input id="vv-ven" type="number" class="inp"></div><div class="form-group"><label class="form-label">Data vendita</label><input id="vv-data" type="date" class="inp" value="'+today()+'"></div><div class="form-group"><label class="form-label">Nota, senza nomi</label><input id="vv-nota" class="inp" placeholder="es. via Roma, 3 locali"></div></div><div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Annulla</button><button class="btn btn-primary" onclick="saveVenditaVista()">Salva</button></div></div></div>')}
+function saveVenditaVista(){const g=v=>document.getElementById(v).value;const zona=g('vv-zona').trim(),pub=parseFloat(g('vv-pub'))||0,ven=parseFloat(g('vv-ven'))||0;if(!zona||!pub||!ven){showToast('Servono zona, prezzo pubblicato e prezzo di vendita','error');return}if(!DB.vendite)DB.vendite=[];DB.vendite.push({id:'v'+Date.now(),immobileId:null,titolo:g('vv-nota').trim(),zona:zona,citta:'Piacenza',tipo:'',mq:parseFloat(g('vv-mq'))||0,locali:0,prezzoPubblicato:pub,prezzoVendita:ven,dataVendita:g('vv-data')||today(),fonte:'annuncio visto',nota:g('vv-nota').trim()});save();closeModal();render();showToast('Vendita segnata. Il valutatore la userà.')}
+function eliminaVenditaVista(id){if(!confirm('Togliere questa vendita vista?'))return;DB.vendite=(DB.vendite||[]).filter(v=>!(String(v.id)===String(id)&&v.fonte==='annuncio visto'));save();render()}
+function getComparabili(d){return venditeRecenti().filter(v=>!d||!d.zona||stessaZona(v.zona,d.zona)).slice(0,5)}
+RENDERERS.valutatore=function(c){c.innerHTML=`<div class="stack"><div class="card" id="vendite-box"></div><div class="card" style="background:linear-gradient(135deg,#0a0c14,#111520);border-color:rgba(201,169,110,.2)"><div id="wizardSteps" class="wizard-steps"></div><div id="wizardBody"></div><div class="row" style="margin-top:18px;justify-content:space-between" id="navButtons"></div></div></div>`;V={step:1,dati:{},risultato:null};paintVenditeBox();vtPaint()};
 function vtPaint(){const ws=document.getElementById('wizardSteps');if(!ws)return;
 ws.innerHTML=STEPS.map((s,i)=>{const n=i+1;return`<div class="wizard-step ${V.step===n?'on':V.step>n?'done':''}" onclick="V.step=${n};vtPaint()"><span class="num">${V.step>n?'✓':n}</span>${s.slice(2)}</div>`}).join('');
 document.getElementById('wizardBody').innerHTML=window['vtStep'+V.step]();
@@ -907,16 +943,16 @@ if(d.trendZona){const v={crescente:5,stabile:0,calo:-5}[d.trendZona];if(v){coef+
 if(d.domotica){coef+=3;det.push({fattore:'Domotica',condizione:'presente',valore:3});n++}
 const base=Math.round(omi.mid*sup*(1+coef/100));
 V.risultato={base,min:Math.round(base*.93),max:Math.round(base*1.07),mq:Math.round(base/Math.max(sup,1)),sup,coef,det,conf:Math.min(100,60+det.length*2)}}
-function vtStep7(){if(!V.risultato)vtCalcola();const r=V.risultato,d=V.dati;const comp=getComparabili(d);
+function vtStep7(){if(!V.risultato)vtCalcola();const r=V.risultato,d=V.dati;
 const canA=Math.round(r.base*.055),canM=Math.round(canA/12);
 return`<div class="risultato-box"><div class="risultato-prezzo">${fmtEuro(r.base)}</div><div class="risultato-range">Forbice ${fmtEuro(r.min)} – ${fmtEuro(r.max)}</div><div class="risultato-permq">${fmtEuro(r.mq)}/mq · sup comm ${r.sup.toFixed(0)}mq</div>
 <div class="confidence-bar"><div class="confidence-label"><span>📊 Affidabilità</span><strong>${r.conf}%</strong></div><div class="confidence-track"><div class="confidence-fill" style="width:${r.conf}%"></div></div></div></div>
 <div class="stats-grid"><div class="stat-box"><div class="stat-num">${r.sup.toFixed(0)}</div><div class="stat-lbl">mq comm.</div></div><div class="stat-box"><div class="stat-num">${r.det.length}</div><div class="stat-lbl">coefficienti</div></div><div class="stat-box"><div class="stat-num">${(r.coef>0?'+':'')+r.coef.toFixed(1)}%</div><div class="stat-lbl">correzione</div></div><div class="stat-box"><div class="stat-num">${fmtEuro(r.mq)}</div><div class="stat-lbl">€/mq</div></div></div>
 <div class="card"><h3 style="color:var(--gold)">💡 Stima affitto</h3><div class="stats-grid"><div class="stat-box"><div class="stat-num">${fmtEuro(canM)}</div><div class="stat-lbl">canone/mese</div></div><div class="stat-box"><div class="stat-num">${fmtEuro(canA)}</div><div class="stat-lbl">canone/anno</div></div><div class="stat-box"><div class="stat-num">${((canA/r.base)*100).toFixed(2)}%</div><div class="stat-lbl">yield lordo</div></div><div class="stat-box"><div class="stat-num">${((canA*.65/r.base)*100).toFixed(2)}%</div><div class="stat-lbl">yield netto</div></div></div></div>
 <div class="card"><h3 style="color:var(--gold)">📐 Coefficienti</h3><div style="max-height:240px;overflow-y:auto"><table class="coeff-table"><tbody>${r.det.map(x=>`<tr><td><b>${esc(x.fattore)}</b></td><td style="color:var(--text2)">${esc(x.condizione)}</td><td style="text-align:right;color:${x.valore>0?'var(--green)':x.valore<0?'var(--red)':'var(--text2)'}">${x.valore>0?'+':''}${x.valore}%</td></tr>`).join('')}</tbody></table></div></div>
-${comp.length?`<div class="card"><h3 style="color:var(--gold)">🏠 Comparabili</h3>${comp.map(x=>`<div class="comp-card"><div class="comp-card-row"><div><b>${esc(x.codice||'')}</b> ${esc(x.titolo||'')}<div style="font-size:11px;color:var(--text2)">similarità ${x.score}%</div></div><div style="text-align:right"><b style="color:var(--gold)">${fmtEuro(x.prezzo)}</b></div></div></div>`).join('')}</div>`:''}
+${htmlVenditeValutazione(d)}${htmlAnnunciZona(d)}
 <div class="card"><h3 style="color:var(--gold)">🎯 Strategia</h3><ul class="strategia-list"><li>💰 Richiesta: ${fmtEuro(Math.round(r.base*1.05))} (+5%)</li><li>🎯 Trattativa: ${fmtEuro(r.min)} – ${fmtEuro(r.base)}</li><li>🚫 Minimo: ${fmtEuro(r.min)}</li>${d.giorniMercato>120?'<li>⏰ Oltre 120gg: ribasso 5-10%</li>':''}</ul></div>
-<div class="alert gold">⚠️ Stima indicativa (modello edonico). Perizia giurata UNI 11558:2014 per valori ufficiali.</div>`}
+<div class="alert gold">⚠️ La fascia di zona è un numero scritto nel programma, non un rogito. Il venduto vero è solo quello che hai segnato: prezzo pubblicato e prezzo di vendita.</div>`}
 /* INCROCI */
 function runChecks(){const F=[];const o=today();const push=(s,cat,t,d,g,id)=>F.push({sev:s,cat,t,d,g,id});
 (DB.clienti||[]).forEach(c=>{if(c.stato==='chiuso')return;if(c.dataRichiamo&&c.dataRichiamo<today())push('high','Contatti',(c.nome||'')+' '+(c.cognome||'')+' da richiamare '+ageText(c.dataRichiamo),'Promemoria scaduto','contatti',c.id);const gg=daysSince(c.ultimoContatto||c.dataCreazione||c.dataPrimoContatto);if(c.stato==='caldo'&&gg>7)push('high','Contatti',c.nome+' '+c.cognome+' caldo fermo da '+gg+'gg','Ricontattalo','contatti',c.id);else if(gg>21)push('medium','Contatti',c.nome+' '+c.cognome+' fermo da '+gg+'gg','Ricontatto','contatti',c.id);if(c.collaborativo==='si'&&c.presentazioneInviata!=='si')push('medium','Presentazione',(c.nome||'')+' '+(c.cognome||'')+' collaborativo senza presentazione','Inviala','contatti',c.id)});
@@ -1069,22 +1105,22 @@ ${syncCardHTML()}
 <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
 <button class="btn btn-primary btn-sm" id="protect-check-btn" onclick="verificaProtezione()">🧪 Verifica copie</button>
 <button class="btn btn-gold btn-sm" onclick="creaCopiaEmergenza()">💾 Doppia copia ora</button>
-<button class="btn btn-ghost btn-sm" onclick="attivaPersistenza()">🔒 Attiva salvataggio persistente</button></div>
-<div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, "ottimizzatori", ripristino del browser) i dati restano al sicuro: chiediamo al browser il <b>salvataggio persistente</b> (StorageManager.persist), teniamo una <b>doppia copia locale di emergenza</b> oltre a IndexedDB e allo storico dei backup, e — se il cloud è attivo — tutto è anche lì, cifrato. Un dubbio? Premi <b>🧪 Verifica copie</b>: controllo tutto in 2 secondi.</div></div>
+<button class="btn btn-gold btn-sm" onclick="attivaPersistenza()">🔒 Blocca i dati su questo dispositivo</button></div>
+<div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, programmi di pulizia, ripristino del browser) i dati restano: tengo <b>due copie di riserva</b> su questo dispositivo, più lo storico dei salvataggi. Se il telefono è collegato, c'è anche una copia al sicuro nel cloud. Un dubbio? Premi <b>🧪 Verifica copie</b>.</div></div>
 <div class="grid2"><div class="card"><div class="card-title" style="margin-bottom:10px">💾 Backup</div><div class="stack" style="gap:8px">
 <button class="btn btn-gold" onclick="esportaBackup()">📥 Esporta backup</button>
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.0</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.2</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
 const ts=t=>t?new Date(t).toLocaleString('it-IT'):'—';
-el.innerHTML=`<div class="prot-row"><span>🔒 Salvataggio persistente (browser)</span><b>${r.persisted?'<span style="color:var(--green)">attivo ✅</span>':(r.persistSupported?'<span style="color:var(--gold)">da attivare — premi il tasto sotto</span>':'<span class="text-muted">non supportato da questo browser</span>')}</b></div>
+el.innerHTML=`<div class="prot-row"><span>🔒 Protezione dalle pulizie</span><b>${r.persisted?'<span style="color:var(--green)">attiva ✅</span>':(r.persistSupported?'<span style="color:var(--gold)">non ancora attiva — installa l’app</span>':'<span class="text-muted">non disponibile</span>')}</b></div>
 <div class="prot-row"><span>💾 Copia principale</span><b>${r.mainLS&&r.mainLS.ok?'✅ '+ts(r.mainLS.ts):'❌ assente'}</b></div>
-<div class="prot-row"><span>🗄️ IndexedDB · storico (${r.storico} snapshot)</span><b>${r.idb&&r.idb.ok?'✅ '+ts(r.idb.ts):'—'}</b></div>
-<div class="prot-row"><span>🆘 Doppia copia di emergenza</span><b>${(r.emgA&&r.emgA.ok)&&(r.emgB&&r.emgB.ok)?'✅ A+B · '+ts(Math.max(r.emgA.ts,r.emgB.ts)):((r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok))?'⚠️ una sola copia':'<span style="color:var(--red)">❌ assente</span>'}</b></div>`;
+<div class="prot-row"><span>🗄️ Archivio di lavoro · ${r.storico} salvataggi</span><b>${r.idb&&r.idb.ok?'✅ '+ts(r.idb.ts):'—'}</b></div>
+<div class="prot-row"><span>🆘 Due copie di riserva</span><b>${(r.emgA&&r.emgA.ok)&&(r.emgB&&r.emgB.ok)?'✅ entrambe · '+ts(Math.max(r.emgA.ts,r.emgB.ts)):((r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok))?'⚠️ una sola copia':'<span style="color:var(--red)">❌ assenti</span>'}</b></div>`;
 }catch(e){el.textContent='Verifica non disponibile: '+(e&&e.message?e.message:e)}}
 async function verificaProtezione(){
 if(!window.ImmoSync){showToast('Motore di salvataggio non disponibile','error');return}
@@ -1094,15 +1130,15 @@ const riga=(ok,t,d)=>`<div class="prot-row"><span>${ok?'✅':'❌'} ${t}</span><
 const emgOk=(r.emgA&&r.emgA.ok)||(r.emgB&&r.emgB.ok);
 document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="protect-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>🧪 Verifica protezione dati</h2>
 <p class="text-muted text-sm" style="margin-bottom:10px">Controllo di tutte le copie salvate su questo dispositivo.</p>
-${riga(!!(r.mainLS&&r.mainLS.ok),'Copia principale (localStorage)',ts(r.mainLS&&r.mainLS.ts))}
-${riga(!!(r.idb&&r.idb.ok),'Copia IndexedDB',ts(r.idb&&r.idb.ts))}
+${riga(!!(r.mainLS&&r.mainLS.ok),'Copia principale',ts(r.mainLS&&r.mainLS.ts))}
+${riga(!!(r.idb&&r.idb.ok),'Archivio di lavoro',ts(r.idb&&r.idb.ts))}
 ${riga(!!(r.emgA&&r.emgA.ok),'Copia di emergenza A',ts(r.emgA&&r.emgA.ts))}
 ${riga(!!(r.emgB&&r.emgB.ok),'Copia di emergenza B',ts(r.emgB&&r.emgB.ts))}
-${riga(r.storico>0,'Storico backup automatici',(r.storico||0)+' snapshot')}
-${riga(!!r.persisted,'Salvataggio persistente (StorageManager.persist)',r.persisted?'attivo':(r.persistSupported?'da attivare':'non supportato'))}
+${riga(r.storico>0,'Storico dei salvataggi',(r.storico||0)+' copie')}
+${riga(!!r.persisted,'Salvataggio persistente',r.persisted?'attivo':(r.persistSupported?'non ancora attivo — installa l’app':'non disponibile'))}
 ${riga(!!r.quota,'Spazio nel browser',(r.usage?(r.usage/1048576).toFixed(1)+' MB usati · ':'')+(r.quota?(r.quota/1048576).toFixed(0)+' MB disponibili':'n/d'))}
 ${!(r.mainLS&&r.mainLS.ok)&&emgOk?`<div class="alert orange">⚠️ La copia principale non c'è più (pulizia del PC?): posso ripristinare tutto subito dalla copia di emergenza.</div><button class="btn btn-gold" onclick="ripristinaDaEmergenza()">🆘 Ripristina dalla copia di emergenza</button>`:''}
-<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>${!r.persisted&&r.persistSupported?'<button class="btn btn-primary" onclick="closeModal();attivaPersistenza()">🔒 Attiva persistente</button>':''}</div></div></div>`)}
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>${!r.persisted&&r.persistSupported?'<button class="btn btn-primary" onclick="closeModal();attivaPersistenza()">🔒 Blocca i dati</button>':''}</div></div></div>`)}
 async function ripristinaDaEmergenza(){
 if(!window.ImmoSync){showToast('Non disponibile','error');return}
 const list=ImmoSync.emergencyRead();
@@ -1117,12 +1153,28 @@ save();
 const ok=ImmoSync.emergencyWrite(DB,true);
 showToast(ok?'🆘 Doppia copia di emergenza creata (A+B)':'⚠️ Copia non riuscita: spazio del browser esaurito?',ok?'success':'error');
 caricaProtezione()}
+function appInstallata(){try{return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true}catch(e){return false}}
 async function attivaPersistenza(){
 if(!window.ImmoSync){showToast('Non disponibile','error');return}
 const ok=await ImmoSync.requestPersist();
-window._persisted=ok;
-showToast(ok?'🔒 Salvataggio persistente attivo: il browser non cancellerà i dati con le pulizie automatiche':'ℹ️ Persistenza non concessa adesso: la doppia copia di emergenza protegge comunque i dati',ok?'success':'info',5500);
-caricaProtezione()}
+window._persisted=!!ok;
+if(ok){showToast('🔒 Dati bloccati su questo dispositivo: le pulizie del browser non li cancellano','success',5500);caricaProtezione();return}
+mostraAiutoPersistenza();caricaProtezione()}
+function mostraAiutoPersistenza(){
+const installata=appInstallata();
+const old=document.getElementById('persist-help-modal');if(old)old.remove();
+const corpo=installata
+?`<p>L'app è installata, ma questo browser non ha ancora promesso di tenere i dati per sempre.</p><p>Le <b>due copie di riserva</b> ci sono già su questo dispositivo. Per una copia tua, che non dipende dal browser, premi <b>Esporta backup</b>: scarichi un file nella cartella Download.</p>`
+:`<p><b>Per tenere i dati anche se pulisci il computer, installa l'app.</b></p><p>Finché la usi solo nella finestra del browser, Windows può cancellarli con le pulizie. Premi <b>Installa l'app</b>: dopo, la tratta come un programma e i dati restano.</p><p>Intanto le due copie di riserva proteggono i dati. Non perdi niente adesso.</p>`;
+const btn=installata
+?`<button class="btn btn-gold" onclick="closeModal();esportaBackup()">📥 Esporta backup</button>`
+:`<button class="btn btn-gold" onclick="installaEBloccaDati()">📲 Installa l'app e blocca i dati</button>`;
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="persist-help-modal" onclick="closeModal(event,this)"><div class="modal modal-md" onclick="event.stopPropagation()"><h2>Dati non ancora bloccati</h2>${corpo}<div class="modal-footer">${btn}<button class="btn btn-ghost" onclick="closeModal()">Più tardi</button></div></div></div>`)}
+async function installaEBloccaDati(){
+closeModal();
+if(window._deferredPrompt){await installaApp();showToast('Apri ImmoCRM dall’icona sul desktop o sul telefono: lì i dati restano bloccati.','info',7000);return}
+if(appInstallata()&&window.ImmoSync){const ok=await ImmoSync.requestPersist();window._persisted=!!ok;if(ok){showToast('🔒 Dati bloccati su questo dispositivo','success',5500);caricaProtezione();return}mostraAiutoPersistenza();return}
+await installaApp()}
 async function cambiaPassword(){const btn=document.getElementById('sec-chg-btn');
 if(btn){btn.disabled=true;btn.textContent='🔄 Cambio in corso…'}
 try{
@@ -1144,7 +1196,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.0',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.2',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1165,7 +1217,7 @@ return `<div class="card" id="sync-card"><div class="row" style="justify-content
 <div><div class="card-title" style="font-size:15px">☁️ Sincronizzazione multi‑dispositivo</div>
 <div class="card-subtitle">Gli stessi dati (contatti, immobili, incroci, agenda) su PC, tablet e smartphone</div></div>
 <div class="row-tight"><span class="badge" style="background:${st[2]}22;color:${st[2]}">${st[0]} ${st[1]}</span>${off?'<span class="badge badge-orange">📴 offline</span>':''}</div></div>
-${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 12px">⚠️ <b>Questo dispositivo non è ancora collegato al cloud.</b> I dati restano salvati solo qui (con doppia copia di emergenza). Per averli anche su telefono e tablet: inserisci il <b>Token GitHub</b> e premi <b>🔗 Collega e sincronizza</b>, oppure incolla il <b>codice dispositivo</b> generato da un tuo dispositivo già collegato.</div>`:''}
+${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 12px">⚠️ <b>Questo dispositivo non è ancora collegato al cloud.</b> I dati sono salvi solo qui, con due copie di riserva. Per averli anche sul telefono: apri <b>Come collego il telefono</b> qui sotto e segui i passi. Alla fine compare un QR: sul telefono scrivi solo la password.</div>`:''}
 <div class="form-row-3">
 <div class="form-group"><label class="form-label">Dove salvo i dati</label><select class="inp" id="sy-mode">
 <option value="off" ${cfg.mode==='off'?'selected':''}>💾 Solo questo dispositivo</option>
@@ -1197,16 +1249,16 @@ ${!collegato?`<div class="alert orange" id="sy-avviso-cloud" style="margin:0 0 1
 <div class="grid2">
 <div><div class="card-title" style="margin-bottom:8px">📱 Dispositivi collegati</div>${dispRows}</div>
 <div><div class="card-title" style="margin-bottom:8px">🕓 Backup automatici su questo dispositivo</div><div id="sy-hist" class="text-sm text-muted">Carico lo storico…</div></div></div>
-<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12px;color:var(--gold)">📖 Come si attiva in 3 minuti (guida)</summary>
+<details id="sy-guida" style="margin-top:12px" ${!collegato?'open':''}><summary style="cursor:pointer;font-size:13px;color:var(--gold);font-weight:700">📖 Come collego il telefono</summary>
 <ol style="font-size:12px;line-height:1.9;padding-left:18px;margin-top:8px;color:var(--text2)">
-<li>Apri <a href="https://github.com/settings/tokens/new?description=ImmoCRM&scopes=gist" target="_blank" rel="noopener" style="color:var(--primary)">github.com/settings/tokens/new</a> (devi essere collegato col tuo account GitHub).</li>
-<li>Note: <code>ImmoCRM</code> · Scadenza: quella che preferisci · Spunta <b>solo</b> la casella <code>gist</code> · <b>Generate token</b>.</li>
-<li>Copia il token (inizia con <code>ghp_</code> o <code>github_pat_</code>) e incollalo qui sopra nel campo <b>Token GitHub</b>.</li>
-<li>Lascia vuoto <b>ID archivio</b> e premi <b>Collega e sincronizza</b>: creo io un Gist <b>privato</b> nel tuo GitHub, ci salvo i dati cifrati e ti mostro subito il <b>codice dispositivo</b>.</li>
-<li>Su tablet e smartphone apri lo stesso indirizzo, inserisci la tua <b>password</b> e incolla il <b>codice dispositivo</b> (in Accesso, o qui sotto in «Usa codice»). Niente token da ricopiare.</li>
-<li>Da lì in poi tutto è automatico: salvi su un dispositivo e in pochi secondi i dati (e gli incroci) arrivano sugli altri. Password e chiave di cifratura sono le stesse su tutti i tuoi dispositivi.</li>
+<li>Sul computer, entra nel tuo account GitHub e apri <a href="https://github.com/settings/tokens/new?description=ImmoCRM&scopes=gist" target="_blank" rel="noopener" style="color:var(--primary)">questa pagina</a>: crea il permesso per l'archivio privato.</li>
+<li>Nome: <code>ImmoCRM</code>. Scadenza: quella che preferisci. Spunta <b>solo</b> la casella <code>gist</code> (nient'altro). Poi premi <b>Generate token</b>.</li>
+<li>Copia il codice che compare (inizia con <code>ghp_</code> o <code>github_pat_</code>) e incollalo qui sopra in <b>Token GitHub</b>.</li>
+<li>Lascia vuoto <b>ID archivio</b>. Nel nome del dispositivo scrivi <b>PC</b>. Premi <b>Collega e sincronizza</b>.</li>
+<li>Compare il QR. Sul telefono apri la fotocamera e inquadralo: l'app si apre e chiede <b>solo la password</b>. Poi installa l'icona sulla schermata Home.</li>
+<li>Da lì in poi è automatico: salvi su un dispositivo e in pochi secondi i dati arrivano sull'altro. La password è la stessa ovunque.</li>
 </ol>
-<div class="alert gold">🔐 Il token resta solo su questo dispositivo. Con il permesso <code>gist</code> può scrivere unicamente i tuoi archivi personali: non tocca repository né account. Se un giorno vuoi revocarlo: github.com → Settings → Developer settings → Tokens → Delete.<br>Il <b>codice dispositivo</b> contiene anche la chiave di cifratura: chi lo possiede può leggere i dati. Non condividerlo; se lo perdi, rigenerane uno dalle Impostazioni.</div>
+<div class="alert gold">🔐 Quel permesso resta solo su questo computer e può scrivere solo il tuo archivio personale. Il QR è un permesso di collegamento: da solo non apre i dati, serve sempre la password. Non mandarlo su WhatsApp.</div>
 </details></div>`}
 function syncMsg(t,col){const e=document.getElementById('sy-msg');if(e){e.textContent=t;e.style.color=col||'var(--text2)'}}
 /* ---------- v10.5: QR per collegare il telefono in un'inquadratura ---------- */
@@ -1268,7 +1320,7 @@ let c=null;
 try{c=await ImmoSync.connectCode({pass:(getAuth()||{}).pass||null})}catch(e){c=null}
 if(!c){syncMsg('⚠️ Prima collega il cloud su questo dispositivo ("Collega e sincronizza")','var(--red)');return}
 document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>📱 Codice dispositivo</h2>
-<p class="text-muted text-sm" style="margin-bottom:10px">Sullo smartphone o tablet: apri ImmoCRM, inserisci la tua <b>password</b> e incolla questo codice (in Accesso, o in Impostazioni → Sincronizzazione → "Usa codice"). Con lui basta il codice: <b>niente token</b>. Il codice contiene anche la chiave di cifratura: trattalo come la password e non condividerlo. Se cambi password o archivio, rigeneralo.</p>
+<p class="text-muted text-sm" style="margin-bottom:10px">Sullo smartphone o tablet: apri ImmoCRM, inserisci la tua <b>password</b> e incolla questo codice (in Accesso, o in Impostazioni → Sincronizzazione → "Usa codice"). Con lui basta il codice: <b>niente token</b>. Da solo non apre i dati: serve sempre la password. Non condividerlo e non mandarlo su WhatsApp. Se cambi password o archivio, rigeneralo.</p>
 <textarea class="inp" id="codice-sync" rows="5" readonly onclick="this.select()" style="font-size:11px;word-break:break-all">${c}</textarea>
 <div style="text-align:center;margin-top:12px">${qrBoxHTML(qrAppUrl(c),180)}<div class="text-sm text-muted" style="margin-top:6px">📱 v10.5: in alternativa inquadra il QR col telefono — il codice arriva già inserito, servirà solo la password.</div></div>
 <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Chiudi</button><button class="btn btn-primary" onclick="copiaCodiceSync()">📋 Copia</button></div></div></div>`)}
@@ -1324,11 +1376,12 @@ if(window.ImmoSync){ImmoSync.setStorageKey(KEY);try{const b=await ImmoSync.boot(
 /* v10.5: protezione da pulizia del PC — chiediamo SUBITO il salvataggio
    persistente al browser e segnaliamo l'eventuale ripristino d'emergenza. */
 try{if(window.ImmoSync&&ImmoSync.requestPersist)ImmoSync.requestPersist().then(p=>{window._persisted=!!p;
-if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem('immocrm_persist_notice','1');showToast('🔒 Salvataggio persistente attivo: i dati resistono alle pulizie del browser','info',5500)}}).catch(()=>{})}catch(e){}
+if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem('immocrm_persist_notice','1');showToast('🔒 Dati bloccati su questo dispositivo: le pulizie del browser non li cancellano','info',5500)}}).catch(()=>{})}catch(e){}
 if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristinati dalla copia di emergenza: la copia principale era stata cancellata (pulizia del PC?)','info',8000),900);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
+window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.0','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.2','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);

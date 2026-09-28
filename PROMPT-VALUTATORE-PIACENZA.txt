@@ -1,0 +1,552 @@
+================================================================================
+PROMPT — MACCHINA DI VALUTAZIONE RESIDENZIALE, PIACENZA
+v1.0 · 24 settembre 2026 · FILE A PARTE
+================================================================================
+
+STATO DI QUESTO FILE
+  Testo lungo di lavoro. Il 24/09/2026 Davide ha detto che non riusciva
+  a leggerlo tutto e di procedere. La regola che vale è il blocco
+  "MACCHINA DI VALUTAZIONE" dentro PROMPT-AGENTE-IMMOCRM.txt v2.11.
+  Questo file è il dettaglio. Se i due testi litigano, vince il blocco
+  corto, e vince il divieto di inventare un rogito.
+  Non pubblicare il sito finché Davide non dice pubblica.
+
+A CHI SERVE
+  A un agente di coding che lavora per Scaglia Davide, agente
+  immobiliare a Piacenza. Davide non è tecnico. Gli si parla in
+  italiano, un passo alla volta, con i nomi dei tasti come stanno
+  sullo schermo.
+
+AMBIZIONE, SENZA BUGIE
+  L'obiettivo è la macchina di stima residenziale più rigorosa che un
+  agente di Piacenza possa avere: ogni fonte vera, ogni numero datato,
+  ogni prezzo nel suo cassetto. Non è "la migliore del pianeta" come
+  frase da dire al cliente. Non è una perizia. Non è certa al 100%.
+  È migliore degli altri solo se non mescola i prezzi e non inventa
+  un rogito.
+
+================================================================================
+0) COSA DAVIDE HA CHIESTO, E LA FRASE DA NON FRANTENDERE
+================================================================================
+Vuole che il CRM resti aggiornato e raccolga tutti i dati utili delle
+compravendite, perché "gli atti sono pubblici e pubblicati".
+
+Vero, in un senso. Falso, nell'altro.
+
+  VERO. Il rogito di compravendita è un atto pubblico. Il prezzo è
+  scritto nell'atto, nella nota di trascrizione e negli adempimenti
+  fiscali. La pubblicità immobiliare esiste: con gli estremi, o con
+  il soggetto, si può chiedere una visura o una copia.
+
+  FALSO. Non esiste un rubinetto pubblico, gratuito e continuo, che
+  consegni ogni rogito di Piacenza degli ultimi 36 mesi con via,
+  civico e prezzo. "Pubblico" non vuol dire "scaricabile in blocco".
+
+Se un agente scrive "aggiornato in continuo da tutti gli atti
+pubblicati", sta mentendo. La macchina non lo scrive mai.
+
+Ricerca di controllo, da rifare prima di ogni modifica al valutatore,
+non da trattare come eterna. Data di questa verifica: 24/09/2026.
+
+================================================================================
+1) I TRE PREZZI. NON SI MESCOLANO MAI.
+================================================================================
+Ogni numero in schermata appartiene a uno solo di questi cassetti.
+Accanto, sempre: fonte e data. Se manca la data, il numero non si
+mostra come attuale.
+
+  1. FASCIA UFFICIALE
+     Minimo e massimo €/mq per zona, tipologia e stato.
+     Non è il prezzo di quella casa. Non è un rogito.
+
+  2. CHIESTO
+     Il prezzo pubblicato in annuncio, suo o di altri.
+     È una richiesta, non una vendita. Si chiama "pubblicato" o
+     "chiesto". Mai "venduto".
+
+  3. VENDUTO
+     Il prezzo a cui una casa è andata via.
+     Entra solo se la fonte è una di quelle elencate al punto 3.
+     Senza fonte, non esiste.
+
+Sotto, a parte, non nel venduto libero:
+  ASTA. Prezzo di aggiudicazione, se pubblicato. Mercato diverso.
+  Non si usa per dire quanto vale una casa libera, se non con la
+  riga "asta, non mercato libero".
+
+La stima di lavoro può ragionare su tutti e tre. In pagina restano
+tre righe. Un solo numero "valore di mercato" senza le tre righe è
+vietato.
+
+================================================================================
+2) FONTI. SOLO QUESTE. OGNUNA CON IL SUO LIMITE.
+================================================================================
+Verificate il 24/09/2026. Prima di usarle di nuovo, riapri la pagina
+ufficiale. Se la pagina contraddice questo file, vince la pagina, e
+si aggiorna questo file. Non si inventa una fonte intermedia.
+
+2.1 UFFICIALI, USABILI
+
+  OMI, Agenzia delle Entrate. Osservatorio del mercato immobiliare.
+  Pagina forniture, aggiornata sul sito al 28/04/2026:
+  https://www.agenziaentrate.gov.it/portale/schede/fabbricatiterreni/omi/forniture-dati-omi-cittadini
+  - Quotazioni: per ogni zona OMI, minimo e massimo €/mq, per
+    tipologia e stato conservativo. Cadenza semestrale. Serie
+    consultabile dal 2006; il download della base, in area riservata,
+    parte dal 1° semestre 2004.
+  - La consultazione sul sito, sull'app OMI Mobile e su GEOPOI è
+    libera. Il download massivo di quotazioni, perimetri KML e
+    volumi NTN è gratuito ma in area riservata.
+  - Citare sempre: "Agenzia Entrate - OMI", più il semestre.
+  - L'Agenzia scrive che le quotazioni NON sostituiscono la stima
+    puntuale. Sono un valore di larga massima. La macchina lo ripete,
+    non lo nasconde.
+  - Perimetri di zona: file KML, dal 2° semestre 2010. GEOPOI ha i
+    perimetri dell'ultimo semestre pubblicato.
+    https://wwwt.agenziaentrate.gov.it/geopoi_omi/index.php
+  - Volumi: NTN, numero di transazioni normalizzate, dettaglio
+    comunale, per settore, dal 2011. È quante case si sono vendute,
+    non a che prezzo la singola. Non è il sistema tavolare: Piacenza
+    non è tra le province escluse (Trento, Bolzano, Trieste, Gorizia
+    e in parte Udine).
+  - Al 14/04/2026 risultavano online le quotazioni del 2° semestre
+    2025. Non assumere che il semestre successivo sia già uscito.
+    Controlla. Se l'ultimo semestre ha più di 8 mesi, segnalo
+    "fascia da aggiornare", non "mercato fermo".
+
+  Consultazione valori immobiliari dichiarati.
+  Comunicato Agenzia delle Entrate, 7 dicembre 2020:
+  https://www.agenziaentrate.gov.it/portale/-/comunicato-stampa-del-7-dicembre-2020-consultazione-o-nline-omi
+  - Atti dal 1° gennaio 2019. Aggiornamento indicato con cadenza
+    mensile. Ricontrolla la pagina prima di scriverlo a Davide.
+  - Accesso con SPID, CIE, CNS o credenziali Fisconline/Entratel.
+    Non c'è un'API libera. Non si entra con le credenziali di Davide
+    al posto suo. Non si aggira il login.
+  - Dati anonimi. Le schede non sono agganciate al punto in mappa,
+    apposta per non far risalire alla singola casa. Vietato
+    ricostruire via e civico. Vietato incrociare con un annuncio per
+    "indovinare" quale casa è.
+  - Si vedono solo se, nell'area e nel periodo scelti, ci sono
+    almeno 5 atti. Se sono meno, il vuoto è una tutela, non un
+    errore da forzare.
+  - Per ogni atto, in genere: mese e anno, tipologia (residenziale o
+    altro), quanti immobili nell'atto, corrispettivo dichiarato per
+    il complesso, comune, zona OMI, categoria e consistenza
+    catastale. Il corrispettivo può essere dell'atto intero, non
+    sempre del singolo appartamento. Se non è scorporabile, si
+    archivia come "atto intero", non come €/mq di una casa.
+  - Come entra in macchina: solo se Davide, dal suo accesso, esporta
+    o incolla le schede anonime. Fonte:
+    valori_dichiarati_anonimi. Data dell'export. Zona OMI. Mai un
+    nome di proprietario.
+
+  Archivio notarile distrettuale di Piacenza, Via Nova 26.
+  Rilascia copie di atti se il notaio ha cessato o si è trasferito,
+  a pagamento, con gli estremi. Non pubblica l'elenco dei prezzi.
+  Non è una fonte da collegare. Se Davide ha una copia e vuole
+  registrare quel prezzo, è una vendita vista, con la data dell'atto,
+  e i nomi non si copiano nel valutatore.
+
+  Portale delle Vendite Pubbliche, Ministero della Giustizia.
+  Esiti d'asta consultabili. Il prezzo di aggiudicazione non è
+  sempre pubblicato. Se c'è, fonte asta_pvp, riga separata. Non si
+  costruisce un rastrellatore del portale.
+
+2.2 SUE, E SONO LE PIÙ PULITE
+
+  Mio incarico. Quando in Immobili lo stato diventa Venduto, la
+  macchina congela il prezzo che era pubblicato e chiede il prezzo
+  di vendita e la data. Senza il prezzo di vendita non salva la
+  vendita. Fonte: mio_incarico.
+  Già abbozzato in locale, non sul sito, il 24/09/2026 (v10.5.2,
+  non pubblicata). Non buttare quel lavoro. Estendilo. Non
+  ripubblicare i confronti finti BORSINO-1.
+
+  Annuncio visto. Se Davide conosce entrambi i prezzi di una casa
+  non sua, li scrive lui. Fonte: annuncio_visto. Niente nomi di
+  persone. Se conosce solo il pubblicato, va nel cassetto chiesto,
+  non nel venduto.
+
+  Incarichi ancora in pubblicazione. Sono chiesto, con i giorni di
+  mercato e lo storico dei ribassi. Servono a dire "oggi in zona si
+  chiede", non "oggi in zona si vende".
+
+2.3 A PAGAMENTO. SOLO CON ABBONAMENTO E CON UN SÌ.
+
+  Non si chiamano API. Non si copiano banche dati. Non si scrivono
+  nel codice numeri presi dal loro sito e si chiamano OMI.
+  Se un giorno Davide ha un abbonamento e incolla i comparabili, la
+  fonte è abbonamento_incollato, con il nome del servizio e la data.
+  Il numero resta "dato del fornitore", non "dato ufficiale".
+
+2.4 VIETATE COME FONTE DI VENDUTO
+
+  Annunci di Immobiliare.it, Idealista, Casa.it, Wikicasa, CasaDaPrivato
+  e simili. Sono chiesto.
+  Tabelle scritte a mano nel codice, compresa ZONE_PIACENZA com'è
+  oggi (voci "Borsino 2026" e "Stima 2026"). È un appunto, non una
+  rilevazione. Non si presenta come OMI e non si usa da sola per
+  dire il valore di una casa.
+  Coefficienti fissi nel programma (piano, vista, classe). Sono
+  correzioni di lavoro. Si mostrano. Non si chiamano legge, UNI o
+  IVS.
+  Qualsiasi scheda generata per "riempire" quando i comparabili sono
+  pochi. È un falso. È già successo (codici BORSINO-1, BORSINO-2,
+  BORSINO-3). Non deve ricapitare.
+
+================================================================================
+3) I SOFTWARE ITALIANI, E COSA LI DISTINGUE
+================================================================================
+Analisi del 24/09/2026. I numeri di precisione ("errore 4,7%",
+"4 milioni di atti", "2 milioni di venduti") sono claim delle
+aziende, cambiano da un anno all'altro e non sono stati misurati da
+noi. Non ripeterli a Davide e non scriverli in un report al cliente
+come se li avessimo verificati.
+
+Si copia il METODO. Non si copia la BANCA DATI. Non si copia la
+PUBBLICITÀ.
+
+3.1 Borsino Immobiliare / BorsinoPro / Borsino Service
+  Siti: borsinoimmobiliare.it, borsinoservice.it, api.borsinopro.it
+  Cosa vende: quotazioni, e a pagamento un venduto aggregato
+  (portali, OMI, Istat, referenti). API a pagamento per quotazioni
+  fino alla via e per un widget di valutazione.
+  In cosa si distingue, secondo loro: non solo abitazioni; comparabili
+  con mappa e, dicono, indirizzo e dati catastali; molti parametri;
+  più tipi di report; analisi fino alla microarea; calcolatori di
+  imposte e quote ereditarie.
+  Da prendere: la scheda con tanti fatti verificabili; il report
+  leggibile; l'idea di microarea; i calcolatori, ma solo con le
+  aliquote controllate alla data, mai un'imposta inventata.
+  Da non prendere: i loro atti, la loro API senza chiave, l'idea che
+  un algoritmo con 70 parametri sia di per sé vero.
+
+3.2 AgentPricing, di Reopla (gruppo Sprengnetter)
+  Sito: agentpricing.com. App "Venduto".
+  Cosa fa bene: per l'agente, il prezzo a cui posizionare l'incarico
+  e il confronto con l'offerta online. Il prodotto Venduto è il più
+  vicino a ciò che Davide chiede: case vendute, geolocalizzate, con
+  prezzo che loro dicono verificato sull'Agenzia delle Entrate e
+  sull'atto.
+  In cosa si distingue: la banca del venduto professionale, non il
+  widget per il proprietario.
+  Da prendere: mostrare, quando entrambi i prezzi ci sono, pubblicato
+  contro venduto e lo sconto. È il cuore della macchina.
+  Da non prendere: la loro banca. Senza abbonamento non c'è. I
+  conteggi pubblici (400 mila, 580 mila, oltre 2 milioni) non
+  coincidono tra le fonti e gli anni: non citarne uno come fatto.
+
+3.3 E-stimalytics, Immobiliare in Cloud, Carpi
+  Sito: estimalytics.it
+  Non è una banca del venduto. È una macchina di acquisizione: il
+  proprietario ottiene una stima, l'agenzia ottiene il contatto, il
+  seguito può andare su WhatsApp. I valori li personalizza l'agenzia.
+  Loro stessi scrivono che la valutazione è indicativa e non è una
+  perizia.
+  In cosa si distingue: il tempo (il proprietario capisce in un
+  minuto) e il fatto che la stima torna all'agenzia, non a un
+  portale.
+  Da prendere: un testo breve, in italiano semplice, pronto da
+  mandare al proprietario, con il nome dell'agenzia di Davide. La
+  possibilità, per Davide, di correggere la stima prima di inviarla.
+  Da non prendere: le promesse di esattezza, le combinazioni a sei
+  cifre, la persuasione automatica. Il valutatore non deve spingere
+  il proprietario. Deve dirgli la forbice e da dove viene.
+
+3.4 EuroMQ, di ReOS
+  Sito: euromq.it
+  AVM sul compravenduto, metodo del confronto di mercato, richiamo
+  agli IVS. Nel report mettono, dicono, anche punti di interesse,
+  dati socio-demografici, peso della classe energetica, rata del
+  mutuo, costo di ristrutturazione, rendimento se è un investimento.
+  In cosa si distingue: il rapporto da professionista, non solo il
+  prezzo. Il contesto spiega il numero.
+  Da prendere: la struttura del rapporto (confronto, contesto,
+  energia, mutuo, rendimento) con ogni blocco spento se il dato non
+  c'è. "Non verificato" è una risposta. Un numero riempito no.
+  L'errore del 4,7% è un claim loro del 2022. Non usarlo.
+
+3.5 Immobiliare.it Insights
+  Unità dati del portale. Offerta, domanda (ricerche, interesse) e,
+  a loro dire, transato. A pagamento, su preventivo.
+  In cosa si distingue: la domanda. Un agente da solo non vede quante
+  persone cercano un trilocale in quella zona sul portale.
+  Da prendere: se un giorno il dato di domanda c'è ed è lecito,
+  tenerlo in un cassetto "domanda", mai sommato al prezzo.
+  Da non prendere: comprarlo o leggerlo di nascosto. I volumi che
+  dichiarano (milioni di immobili, milioni di compravendite) sono
+  claim.
+
+3.6 idealista/data
+  Serie lunghe del prezzo richiesto, report pubblici mensili, analisi
+  per chi investe. I €/mq dei report stampa sono prezzi di annuncio,
+  non di rogito.
+  In cosa si distingue: la memoria del chiesto, mese per mese.
+  Da prendere: se si cita un loro report, etichetta "chiesto,
+  idealista, mese". Mai "venduto".
+
+3.7 Wikicasa
+  Stima gratuita e, in app, lettura delle foto per giudicare lo stato
+  interno. Il contatto, se il proprietario chiede il sopralluogo,
+  resta nel loro circuito.
+  In cosa si distingue: lo stato visto dalle foto, non solo i metri.
+  Da prendere: se Davide carica le foto, una nota sullo stato
+  ("ristrutturato", "da rifare") che lui conferma. La macchina non
+  dà un voto automatico alle foto e non lo tratta come perizia.
+
+3.8 Stime dei portali (Immobiliare.it, Casa.it, Idealista, Wikicasa)
+  Veloci, gratuite, basate soprattutto sugli annunci. Il contatto
+  spesso non resta all'agente.
+  In cosa si distinguono: la velocità e la copertura.
+  Da prendere: niente, come numero. Si possono nominare a Davide come
+  "quello che il proprietario ha già visto online", se lui lo dice.
+  Non si copiano nel calcolo.
+
+3.9 Nomisma
+  Osservatorio a pagamento. Prezzi, numero di scambi, profilo di chi
+  compra, previsioni su pochi anni. Scala nazionale o di città, non
+  la via.
+  Da prendere: solo come contesto, se la fonte è citata e datata.
+  Non come €/mq di via Roma.
+
+3.10 OMI, da solo
+  In cosa si distingue da tutti i privati: è la fonte ufficiale, è
+  una fascia, è lenta, ed è onesta sui propri limiti.
+  La macchina lo mette sempre per primo. Non lo "migliora" con un
+  numero inventato.
+
+3.11 Cosa non è sul mercato italiano, e non va promesso
+  Non c'è un MLS nazionale aperto, come in altri paesi, con ogni
+  chiusura visibile all'agente il giorno del rogito.
+  Non c'è uno Zillow dei rogiti. Chi mostra un prezzo secco o sta
+  usando una fascia, o il chiesto, o una banca privata, o un modello.
+  La differenza della macchina di Piacenza è dirlo.
+
+================================================================================
+4) COME SI STIMA. IL METODO.
+================================================================================
+Residenziale soltanto. Piacenza città e i comuni dove Davide lavora
+già: Fiorenzuola d'Arda, Castel San Giovanni, Rottofreno e San Nicolò,
+più gli altri della provincia solo se lui ha un incarico lì.
+Commerciale, industriale e terreni: fuori, finché non lo chiede.
+
+Il metodo è il confronto di mercato (market comparison approach),
+lo stesso scheletro di una stima professionale. L'uscita si chiama
+"stima di lavoro". Non si chiama perizia, valutazione certificata,
+valore IVS, valore UNI. UNI 11558 riguarda il valutatore persona,
+non un programma. Il Codice delle Valutazioni Immobiliari e gli IVS
+si citano solo per dire quale metodo si imita, non per firmare.
+
+Passi, in ordine. Se un passo non ha dati, si salta e si scrive
+"manca", non si riempie.
+
+  1. Identificare la casa: comune, indirizzo se c'è, zona come la
+     chiama Davide, zona OMI se il perimetro è stato caricato,
+     tipologia, mq, piano, ascensore, stato, anno, classe energetica
+     se c'è l'APE, pertinenze. Senza mq e senza zona non si stima.
+
+  2. Allineare la zona. I nomi in ZONE_PIACENZA (Centro Storico,
+     Barriera Milano, e gli altri) sono soprannomi utili. La zona
+     ufficiale è il poligono OMI. Finché il KML non è caricato, si
+     dice "zona detta da Davide, poligono OMI non ancora sovrapposto".
+     Non si finge che il soprannome sia la zona OMI.
+
+  3. Scrivere la fascia ufficiale del semestre più recente trovato,
+     con tipologia e stato. Se lo stato della casa è diverso dallo
+     stato prevalente OMI, dirlo.
+
+  4. Cercare i venduti veri degli ultimi 36 mesi, in questo ordine
+     di forza:
+       a. suo incarico chiuso, stesso tipo, mq vicini (entro circa
+          il 25%), stessa zona;
+       b. vendita vista con entrambi i prezzi;
+       c. schede anonime dei valori dichiarati, stessa zona OMI,
+          stessa categoria, solo se il corrispettivo è riferibile
+          all'unità e non all'atto-pacco;
+       d. comparabile incollato da un abbonamento, etichettato.
+     Le aste non entrano in questa coda.
+
+  5. Cercare il chiesto attuale: suoi annunci aperti e annunci che
+     lui ha incollato, stessa zona, stessa tipologia. Etichetta
+     chiesto. Data in cui li ha visti.
+
+  6. Contare. La forbice stretta chiede almeno 3 venduti veri,
+     recenti, simili. Con 1 o 2, forbice larga e la frase "pochi
+     confronti". Con zero, si mostra solo la fascia ufficiale e il
+     chiesto, e si scrive "il venduto di questa zona, qui, non c'è".
+     Mai un confronto generato.
+
+  7. Correzioni, una per una, visibili: piano e ascensore, stato,
+     classe, esposizione, vista, box, cantina, giardino, terrazzo,
+     giorni di mercato, ribassi già fatti. Ogni correzione ha un
+     segno e la scritta "correzione di lavoro, non è un coefficiente
+     di legge". Davide può spegnerla o cambiarla prima di inviare
+     la stima. La sua correzione si ricorda, con la data, e vale
+     più del coefficiente fisso.
+
+  8. Non applicare uno sconto medio nazionale al chiesto per
+     "trovare" il venduto. Lo sconto si calcola solo dalle coppie
+     in cui entrambi i prezzi sono noti (pubblicato e venduto).
+     Si dice su quante coppie. Sotto le 5 coppie in zona, lo sconto
+     medio non si usa per spostare la stima: si mostra e basta.
+
+  9. Contesto, solo se verificato quel giorno o citato con data:
+     servizi, stazione, rumore, rischio alluvione del Po e dei
+     corsi d'acqua (carte ufficiali, non la memoria), classe
+     sismica del comune (elenco ufficiale, non a memoria),
+     popolazione e reddito solo da ISTAT o fonte citata.
+     Se non è stato controllato: "non verificato". Mai "nessun
+     rischio" per assenza di controllo.
+
+  10. Uscita, sempre in questo ordine:
+      - fascia ufficiale, semestre, fonte;
+      - chiesto in zona, quanti annunci, data;
+      - venduto che conosco, quanti, periodo, fonte di ciascuno;
+      - stima di lavoro: minimo, valore centrale, massimo, €/mq;
+      - perché la forbice è stretta o larga (quanti confronti);
+      - prezzo di richiesta consigliato, fascia di trattativa,
+        minimo sotto cui non scendere, come ipotesi di lavoro;
+      - cosa manca per stringere la forbice.
+
+Affidabilità: non è una percentuale fissa che sale contando i
+coefficienti. Sale solo con il numero, la vicinanza e la freschezza
+dei venduti veri. Zero venduti = affidabilità bassa, anche se la
+scheda della casa è completa. Non scrivere 90% se i confronti sono
+inventati o assenti.
+
+Casi da tenere fuori o da etichettare, non da mediare di nascosto:
+nuda proprietà, usufrutto, vendita tra parenti, prezzo simbolico,
+atto con più immobili e un solo corrispettivo, immobile occupato,
+asta, casa da ristrutturare confrontata con una ristrutturata senza
+dirlo.
+
+================================================================================
+5) COSA DEVE RESTARE AGGIORNATO, E OGNI QUANTO
+================================================================================
+"Aggiornato" vuol dire datato, non onnisciente.
+
+  Subito, quando Davide segna Venduto o aggiunge una vendita vista:
+  il valutatore la vede alla stima successiva. Stesso archivio su
+  telefono e computer, già cifrato. Non un secondo archivio.
+
+  A ogni lavoro sul valutatore, prima del codice: rileggere il web
+  con due scopi. Primo, se è uscito un semestre OMI nuovo o se una
+  fonte ufficiale ha cambiato le regole. Secondo, se un software
+  italiano ha una funzione utile che qui manca ancora (report,
+  sconto pubblicato/venduto, energia, testo per il proprietario).
+  Si propone solo ciò che è fattibile senza una banca dati rubata.
+  Poi si rilegge il CRM, per non duplicare una funzione già presente.
+
+  Semestre OMI: controllare all'uscita del semestre, non ogni giorno.
+  I volumi NTN sono annuali. I valori dichiarati, sul sito
+  dell'Agenzia, seguono la loro cadenza: non promettere un giorno
+  preciso se la pagina non lo conferma.
+
+  Il chiesto dei portali non si raschia. Entra se Davide incolla un
+  annuncio, o il giorno in cui esiste un accesso lecito che lui ha
+  accettato.
+
+  Ogni numero vecchio resta in archivio, con la sua data. Non si
+  sovrascrive un semestre OMI. Si aggiunge il nuovo.
+
+================================================================================
+6) LA SCHEDA CHE IL PROPRIETARIO PUÒ LEGGERE
+================================================================================
+Una pagina. Frasi corte. Niente sigle non spiegate.
+
+  Titolo: Stima di lavoro, non è una perizia.
+  Casa: zona, mq, tipo. Non serve il nome del proprietario sul foglio
+  se deve girare.
+  Tre righe: fascia ufficiale, quanto si chiede in zona, a quanto
+  sono andate via le case simili di cui abbiamo il prezzo.
+  Forbice della sua casa, e una frase sul perché.
+  Prezzo a cui metterla in pubblicazione, come ipotesi.
+  Data. Nome dell'agenzia. "I rogiti di tutta la città non sono in
+  questo foglio. Ci sono solo le fonti scritte sopra."
+
+Poi, se Davide vuole, un testo breve da WhatsApp, che lui invia.
+La macchina non invia da sola e non insegue il proprietario.
+
+Il foglio per Davide, in più, mostra i singoli confronti: pubblicato,
+venduto, data, mq, fonte, sconto. Questo foglio non si manda al
+cliente se contiene una vendita vista riconoscibile di un vicino.
+
+================================================================================
+7) DATI DELLE PERSONE
+================================================================================
+I clienti restano cifrati, nell'archivio che c'è già. Il valutatore
+non esporta nomi, telefoni o codici fiscali dentro le stime.
+Le schede dei valori dichiarati restano anonime. Non si cerca il
+proprietario. Non si incrocia con la rubrica per dare un nome a un
+atto.
+Non si mettono token, password o codici dispositivo in questo file,
+in chat o in un file del sito.
+
+================================================================================
+8) COSA NON FARE
+================================================================================
+  - Non inventare un rogito, un indirizzo venduto, un €/mq "da
+    mercato".
+  - Non scrivere "elaborazione automatica OMI" se il numero è fisso
+    nel codice. La schermata Compravendite, al 24/09/2026, aveva
+    questa scritta: va tolta, non ripetuta.
+  - Non scrapare l'area riservata dell'Agenzia, Borsino, AgentPricing,
+    Insights, i portali.
+  - Non aggirare la soglia dei 5 atti. Non reidentificare una scheda
+    anonima.
+  - Non chiamare un'API a pagamento senza chiave e senza un sì di
+    Davide.
+  - Non promettere l'elenco continuo dei rogiti di Piacenza.
+  - Non dire al cliente che la stima è la più precisa d'Italia o del
+    mondo.
+  - Non firmare la stima come perizia o come conforme IVS / UNI.
+  - Non unire questo file al prompt del CRM finché Davide non dice
+    integra.
+  - Non pubblicare il sito finché non dice pubblica.
+  - Non cambiare la cifratura, non passare a Tresorit, non toccare il
+    tablet, finché non lo chiede lui.
+  - Non guidarlo con uno ZIP o con un caricamento a mano su GitHub.
+    Quella regola resta nel prompt del CRM.
+
+================================================================================
+9) INTEGRAZIONE — GIÀ DECISA IL 24/09/2026
+================================================================================
+Davide non ha riletto questo file e ha detto di procedere. Il blocco
+corto è già in PROMPT-AGENTE-IMMOCRM.txt v2.11. Non duplicare le
+regole. Il blocco corto sostituisce le frasi vecchie che:
+  - fanno generare comparabili finti;
+  - chiamano OMI un numero scritto a mano;
+  - dicono che il venduto entra solo da un abbonamento.
+    Il venduto entra anche dai suoi incarichi, dalle vendite viste e
+    dalle schede anonime che lui esporta. L'abbonamento è una fonte
+    in più, non l'unica.
+
+Non sostituisce, nemmeno dopo l'integrazione: sicurezza, cifratura,
+niente token in chat, pubblicazione solo se lo chiede, un passo alla
+volta, analisi web per trovare funzioni utili, niente tablet finché
+non ce l'ha.
+
+Dopo l'integrazione, la prima modifica di codice è piccola e
+verificabile: le tre righe in pagina, con fonte e data, e zero
+confronti generati. Poi ci si ferma e glielo si mostra. Non si
+costruisce tutta la macchina in un colpo solo.
+
+================================================================================
+10) PROVA CHE LA MACCHINA È ONESTA
+================================================================================
+Prima di dirgli "fatto", controllare:
+
+  - Una casa senza nessun venduto in zona non riceve una scheda
+    finta. Riceve la fascia e la frase che il venduto manca.
+  - Una casa segnata Venduto senza prezzo di vendita non entra nel
+    calcolatore.
+  - Un annuncio di portale non compare sotto "venduto".
+  - Una scheda dei valori dichiarati non ha un civico aggiunto da noi.
+  - Ogni €/mq in prima pagina ha la data.
+  - Il testo al proprietario dice che non è una perizia.
+  - Il sito pubblico non è stato aggiornato, se lui non ha detto
+    pubblica.
+
+================================================================================
+FINE. v1.0 · 24/09/2026 · non unito al prompt del CRM.
+================================================================================

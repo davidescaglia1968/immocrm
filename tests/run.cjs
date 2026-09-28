@@ -1,10 +1,14 @@
 'use strict';
-/* Suite di verifica ImmoCRM Pro v10.4 — esegue il codice REALE (sync.js + app.js).
+/* Suite di verifica ImmoCRM Pro v10.5 — esegue il codice REALE (sync.js + app.js).
    Copre: cifratura, merge multi-dispositivo, tombstone, provider Gist (server locale),
    autenticazione PBKDF2 + lockout, login obbligatorio (solo password),
    codice dispositivo v3 (senza chiave grezza, solo "permesso" per il 1° collegamento),
    cambio password che apre su tutti i dispositivi, recupero password (domanda segreta),
-   tracciamento modifiche, incroci, backup. */
+   tracciamento modifiche, incroci, backup,
+   v10.5: QR code (generatore integrato + decodifica indipendente + RS),
+   v10.5: allarmi scadenze a 4 livelli su tutto il CRM (campanella + pannello + Da Fare),
+   v10.5: QR in Sincronizzazione + avviso "non collegato al cloud",
+   v10.5: protezione dati da pulizia del PC (persist + doppia copia di emergenza + verifica). */
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -282,20 +286,23 @@ async function testPasswordChange() {
   I.setHooks({ getDb: null, applyDb: null, onStatus: null });
   server.close();
 }
-const { JSDOM } = require('jsdom');
+const { JSDOM, VirtualConsole } = require('jsdom');
 const { IDBFactory } = require('fake-indexeddb');
 
-function makeWindow() {
+function makeWindow(url) {
   const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8')
     .replace(/<link rel="stylesheet"[^>]*>/g, '')
     .replace(/<link rel="manifest"[^>]*>/g, '')
     .replace(/<link rel="[^>]*icons[^>]*>/g, '')
     .replace(/<script src="sync\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'sync.js'), 'utf8') + '<\/script>')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + '<\/script>');
+  const vc = new VirtualConsole();
+  vc.on('jsdomError', e => { if (!/Not implemented/.test((e && e.message) || '')) console.error('jsdom:', e && e.message); });
   const dom = new JSDOM(html, {
-    url: 'https://localhost/',
+    url: url || 'https://localhost/',
     runScripts: 'dangerously',
-    pretendToBeVisual: true
+    pretendToBeVisual: true,
+    virtualConsole: vc
   });
   const win = dom.window;
   win.indexedDB = new IDBFactory();
@@ -423,6 +430,288 @@ async function testApp() {
   win.close();
 }
 
+/* ---------------------------------------------------------------- */
+/* v10.5 — QR code: generatore integrato in sync.js                 */
+/* La decodifica qui sotto è INDIPENDENTE (scritta dai posizioni     */
+/* della specifica): se il round-trip passa, posizionamento dati,    */
+/* maschera, bit di formato e Reed-Solomon sono corretti.            */
+/* ---------------------------------------------------------------- */
+function qrDecodeCheck(modules) {
+  const size = modules.length;
+  const ver = (size - 17) / 4;
+  if (!Number.isInteger(ver) || ver < 1 || ver > 40) throw new Error('dimensione non QR: ' + size);
+  let f = 0;
+  for (let i = 0; i <= 5; i++) if (modules[i][8]) f |= 1 << i;
+  if (modules[7][8]) f |= 1 << 6;
+  if (modules[8][8]) f |= 1 << 7;
+  if (modules[8][7]) f |= 1 << 8;
+  for (let i = 9; i < 15; i++) if (modules[8][14 - i]) f |= 1 << i;
+  const val = f ^ 0x5412;
+  const dataF = val >>> 10;
+  let rem = dataF;
+  for (let t = 0; t < 10; t++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+  if (((dataF << 10) | rem) !== val) throw new Error('bit di formato BCH non validi');
+  const eclIdx = [1, 0, 3, 2].indexOf(dataF >>> 3);
+  const mask = dataF & 7;
+  if (eclIdx < 0) throw new Error('livello ECC non valido');
+  const fun = Array.from({ length: size }, () => new Array(size).fill(false));
+  const setF = (x, y) => { if (x >= 0 && x < size && y >= 0 && y < size) fun[y][x] = true; };
+  for (let i = 0; i < size; i++) { setF(6, i); setF(i, 6); }
+  const finder = (cx, cy) => { for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++) setF(cx + dx, cy + dy); };
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  const ap = I.qrAlignPositions(ver), n = ap.length;
+  for (let a1 = 0; a1 < n; a1++) for (let a2 = 0; a2 < n; a2++) {
+    if ((a1 === 0 && a2 === 0) || (a1 === 0 && a2 === n - 1) || (a1 === n - 1 && a2 === 0)) continue;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) setF(ap[a2] + dx, ap[a1] + dy);
+  }
+  for (let i = 0; i <= 5; i++) setF(8, i);
+  setF(8, 7); setF(8, 8); setF(7, 8);
+  for (let i = 9; i < 15; i++) setF(14 - i, 8);
+  for (let i = 0; i < 8; i++) setF(size - 1 - i, 8);
+  for (let i = 8; i < 15; i++) setF(8, size - 15 + i);
+  setF(8, size - 8);
+  if (ver >= 7) for (let i = 0; i < 18; i++) { const a = size - 11 + i % 3, b = Math.floor(i / 3); setF(a, b); setF(b, a); }
+  const maskBit = (m, x, y) => {
+    switch (m) {
+      case 0: return (x + y) % 2 === 0;
+      case 1: return y % 2 === 0;
+      case 2: return x % 3 === 0;
+      case 3: return (x + y) % 3 === 0;
+      case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+      case 5: return (x * y) % 2 + (x * y) % 3 === 0;
+      case 6: return ((x * y) % 2 + (x * y) % 3) % 2 === 0;
+      default: return ((x + y) % 2 + (x * y) % 3) % 2 === 0;
+    }
+  };
+  const bits = [];
+  for (let right = size - 1; right >= 1; right -= 2) {
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++) {
+      for (let j = 0; j < 2; j++) {
+        const x = right - j;
+        const upward = ((right + 1) & 2) === 0;
+        const y = upward ? size - 1 - vert : vert;
+        if (!fun[y][x]) { let d = modules[y][x]; if (maskBit(mask, x, y)) d = !d; bits.push(d ? 1 : 0); }
+      }
+    }
+  }
+  const cw = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) { let b = 0; for (let j = 0; j < 8; j++) b = (b << 1) | bits[i + j]; cw.push(b); }
+  const numBlocks = I.QR_NUM_BLOCKS[eclIdx][ver];
+  const eccLen = I.QR_ECC_PER_BLOCK[eclIdx][ver];
+  const raw = Math.floor(I.qrRawModules(ver) / 8);
+  const numShort = numBlocks - raw % numBlocks;
+  const shortLen = Math.floor(raw / numBlocks);
+  if (cw.length < raw) throw new Error('codewords letti insufficienti');
+  const datBlocks = [], eccBlocks = [];
+  for (let b1 = 0; b1 < numBlocks; b1++) { datBlocks.push([]); eccBlocks.push([]); }
+  let k = 0;
+  for (let i = 0; i < shortLen - eccLen; i++) for (let j = 0; j < numBlocks; j++) datBlocks[j].push(cw[k++]);
+  for (let j = numShort; j < numBlocks; j++) datBlocks[j].push(cw[k++]);
+  for (let i = 0; i < eccLen; i++) for (let j = 0; j < numBlocks; j++) eccBlocks[j].push(cw[k++]);
+  const rsMul = (x, y) => { let z = 0; for (let i = 7; i >= 0; i--) { z = (z << 1) ^ ((z >>> 7) * 0x11D); z ^= ((y >>> i) & 1) * x; } return z; };
+  const rsDiv = deg => { const r = new Array(deg - 1).fill(0); r.push(1); let root = 1; for (let i = 0; i < deg; i++) { for (let j = 0; j < r.length; j++) { r[j] = rsMul(r[j], root); if (j + 1 < r.length) r[j] ^= r[j + 1]; } root = rsMul(root, 2); } return r; };
+  const rsRem = (data, div) => { const r = div.map(() => 0); data.forEach(b => { const fac = b ^ r.shift(); r.push(0); div.forEach((c, i) => { r[i] ^= rsMul(c, fac); }); }); return r; };
+  const div = rsDiv(eccLen);
+  let eccOk = 0;
+  datBlocks.forEach((d, j) => { const calc = rsRem(d, div); if (calc.join() !== eccBlocks[j].join()) throw new Error('Reed-Solomon non torna nel blocco ' + j); eccOk++; });
+  const data = [].concat(...datBlocks);
+  let bi = 0;
+  const take = nb => { let v = 0; for (let i = 0; i < nb; i++) { v = (v << 1) | ((data[bi >> 3] >> (7 - (bi & 7))) & 1); bi++; } return v; };
+  const bytes = [];
+  while (bi + 4 <= data.length * 8) {
+    const mode = take(4);
+    if (mode === 0) break;
+    if (mode !== 4) throw new Error('modo non byte: ' + mode);
+    const len = take(ver <= 9 ? 8 : 16);
+    for (let i = 0; i < len; i++) bytes.push(take(8));
+  }
+  return { text: Buffer.from(bytes).toString('utf8'), ver, mask, ecl: 'LMQH'[eclIdx], eccOk };
+}
+
+async function testQR() {
+  section('7. v10.5: QR code — generatore integrato (sync.js, niente librerie esterne)');
+  const q1 = Sync.qr.matrix('A', 'L');
+  ok(q1.size === 21 && q1.version === 1 && q1.modules.length === 21 && q1.modules[0][0] === true && q1.modules[0][6] === true && q1.modules[3][3] === true && q1.modules[2][2] === true && q1.modules[1][3] === false, 'matrice v1 21×21 con finder pattern corretto (centro pieno, anello chiaro)');
+  const a = Sync.qr.matrix('stesso testo', 'M'), b2 = Sync.qr.matrix('stesso testo', 'M'), c2 = Sync.qr.matrix('altro testo!', 'M');
+  const flat = q => q.modules.map(r => r.map(x => x ? '1' : '0').join('')).join('');
+  ok(flat(a) === flat(b2) && flat(a) !== flat(c2), 'deterministico: stesso testo → stessa matrice, testo diverso → matrice diversa');
+  ok(Sync.qr.dataCodewords(1, 'L') === 19 && Sync.qr.dataCodewords(1, 'M') === 16 && Sync.qr.dataCodewords(1, 'Q') === 13 && Sync.qr.dataCodewords(1, 'H') === 9 && Sync.qr.dataCodewords(10, 'M') === 216 && Sync.qr.dataCodewords(40, 'L') === 2956 && Sync.qr.dataCodewords(40, 'H') === 1276, 'capienze codewords uguali ai valori pubblicati (ISO 18004)');
+  const t1 = 'CIAO-MONDO-123';
+  const d1 = qrDecodeCheck(Sync.qr.matrix(t1, 'M').modules);
+  ok(d1.text === t1, 'round-trip: testo corto decodificato identico', d1.text);
+  const codeLungo = 'IMMOCRM1.' + Buffer.from(JSON.stringify({ v: 3, m: 'gist', g: 'gist1234567', t: 'ghp_' + 'T'.repeat(36), e: 1, r: '', s: 'U2FsZVNhbGVTYWxlU2FsZQ==', h: { salt: 'c2FsdA==', iter: 210000, hash: 'aGFzaGhhc2hoYXNoaGFzaA==' } })).toString('base64');
+  const urlQR = 'https://davidescaglia1968.github.io/immocrm/#codice=' + encodeURIComponent(codeLungo);
+  const d2 = qrDecodeCheck(Sync.qr.matrix(urlQR, 'M').modules);
+  ok(d2.text === urlQR, 'round-trip: link reale col codice dispositivo (~' + urlQR.length + ' caratteri)', d2.text.slice(0, 40));
+  const t3 = 'È perchè — città € 💶 ünïcödé';
+  const d3 = qrDecodeCheck(Sync.qr.matrix(t3, 'M').modules);
+  ok(d3.text === t3, 'round-trip: accenti ed emoji (UTF-8)');
+  const qm = Sync.qr.matrix(urlQR, 'Q');
+  const dm = qrDecodeCheck(qm.modules);
+  ok(dm.ecl === 'Q' && dm.mask >= 0 && dm.mask <= 7, 'bit di formato: livello ECC richiesto (' + dm.ecl + ') e maschera 0-7');
+  ok(d2.eccOk > 0 && dm.eccOk === I.QR_NUM_BLOCKS[2][qm.version], 'Reed-Solomon: ECC verificato su tutti i blocchi (' + dm.eccOk + ')');
+  const t4 = 'x'.repeat(1000);
+  const q4 = Sync.qr.matrix(t4, 'M');
+  const d4 = qrDecodeCheck(q4.modules);
+  ok(q4.version > 10 && d4.text === t4, 'testo di 1000 caratteri → versione alta (v' + q4.version + ') e round-trip ok');
+  const svg = Sync.qr.svg('test-svg', { ec: 'M' });
+  ok(typeof svg === 'string' && svg.indexOf('<svg') === 0 && /viewBox="0 0 \d+ \d+"/.test(svg) && svg.indexOf('fill="#ffffff"') > 0 && svg.indexOf('<path') > 0 && svg.indexOf('</svg>') === svg.length - 6, 'qr.svg produce SVG valido (sfondo bianco + moduli neri)');
+  let overflowErr = null;
+  try { Sync.qr.matrix('y'.repeat(3000), 'H'); } catch (e) { overflowErr = e; }
+  ok(overflowErr && /troppo lungo/i.test(overflowErr.message), 'oltre la versione 40 → errore chiaro');
+}
+
+async function testAllarmi() {
+  section('8. v10.5: allarmi scadenze — 4 livelli (3-2-1 giorni e oggi) su tutto il CRM');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.raccogliScadenze === 'function' && typeof win.apriPannelloScadenze === 'function');
+  const D = n => { const x = new Date(); x.setDate(x.getDate() + n); const p = v => String(v).padStart(2, '0'); return x.getFullYear() + '-' + p(x.getMonth() + 1) + '-' + p(x.getDate()); }; // isoLocal è una const di app.js: non vive su window, la ricalco qui (stesso fuso)
+  const DB = win.DB;
+  DB.attivita.push({ id: 'a1', titolo: 'Att tre giorni', scadenza: D(3), done: false, priorita: 'alta' });
+  DB.attivita.push({ id: 'a2', titolo: 'Fatta domani', scadenza: D(1), done: true });
+  DB.attivita.push({ id: 'a3', titolo: 'Scaduta ieri laltro', scadenza: D(-2), done: false });
+  DB.attivita.push({ id: 'a4', titolo: 'Tra una settimana', scadenza: D(7), done: false });
+  DB.appuntamenti.push({ id: 101, titolo: 'Visita Via Roma', data: D(2), ora: '10:00', stato: 'pianificato' });
+  DB.appuntamenti.push({ id: 102, titolo: 'Annullato', data: D(1), ora: '11:00', stato: 'annullato' });
+  DB.chiamate.push({ id: 103, nome: 'Mario Rossi', telefono: '333', stato: 'da-richiamare', dataRichiamo: D(1) });
+  DB.chiamate.push({ id: 104, nome: 'Gia convertito', telefono: '334', stato: 'convertito', dataRichiamo: D(1) });
+  DB.clienti.push({ id: 105, nome: 'Anna', cognome: 'Verdi', dataRichiamo: D(0), stato: 'tiepido' });
+  DB.clienti.push({ id: 106, nome: 'Chiuso', cognome: 'Bianchi', dataRichiamo: D(1), stato: 'chiuso' });
+  DB.documenti.push({ id: 107, titolo: 'APE in scadenza', tipo: 'ape', scadenza: D(2) });
+  DB.documenti.push({ id: 108, titolo: 'Visura scaduta', tipo: 'visura', scadenza: D(-1) });
+  DB.fatture.push({ id: 'f109', numero: 'FA-1', totale: 1500, cliente: 'Caio', stato: 'da-incassare', scadenza: D(3) });
+  DB.fatture.push({ id: 'f110', numero: 'FA-2', totale: 900, cliente: 'Sempronio', stato: 'incassata', scadenza: D(1) });
+  DB.openhouses.push({ id: 'oh111', titolo: 'OH Borgotrebbia', data: D(1), oraInizio: '15:00' });
+  DB.openhouses.push({ id: 'oh112', titolo: 'OH passata', data: D(-5), oraInizio: '15:00' });
+  DB.mandati.push({ id: 'md113', immobileNome: 'Villa Esclusiva', stato: 'attivo', nomeVenditore: 'Dante', scadenza: D(2) });
+  DB.mandati.push({ id: 'md114', immobileNome: 'Mandato 90gg', stato: 'attivo', nomeVenditore: 'Beatrice', dataFirma: D(-88) });
+  DB.mandati.push({ id: 'md115', immobileNome: 'Annullato', stato: 'annullato', scadenza: D(1) });
+
+  const tutti = win.raccogliScadenze();
+  const tipi = ['Attività', 'Appuntamento', 'Chiamata', 'Contatto', 'Documento', 'Fattura', 'Open House', 'Mandato'];
+  ok(tipi.every(t => tutti.some(x => x.tipo === t)), 'raccoglie le scadenze di tutte le 8 aree del CRM', tipi.filter(t => !tutti.some(x => x.tipo === t)).join(','));
+  const per = win.allarmiPerLivello();
+  ok(per[3].length === 2 && per[3].some(x => x.titolo === 'Att tre giorni') && per[3].some(x => /FA-1/.test(x.titolo)) && per[3].every(x => x.gg === 3 && x.livello === 3), 'livello 3: scadenze tra 3 giorni (attività + fattura)');
+  ok(per[2].length === 4 && per[2].some(x => /Visita Via Roma/.test(x.titolo)) && per[2].some(x => x.titolo === 'APE in scadenza') && per[2].every(x => x.gg === 2), 'livello 2: tra 2 giorni (appuntamento, documento, mandati)');
+  ok(per[1].length === 2 && per[1].some(x => x.tipo === 'Chiamata' && x.dettaglio === 'da richiamare') && per[1].some(x => x.tipo === 'Open House'), 'livello 1: domani (chiamata da richiamare + open house)');
+  ok(per[0].length === 1 && per[0][0].tipo === 'Contatto' && /Anna/.test(per[0][0].titolo) && per[0][0].gg === 0, 'livello 0: oggi (contatto da richiamare oggi)');
+  ok(win.giorniMancanti(D(4)) === 4 && win.livelloAllarme(4) === null && !win.allarmiScadenze().some(x => x.titolo === 'Tra una settimana') && win.scaduteOra().some(x => x.titolo === 'Scaduta ieri laltro'), 'tra 4+ giorni nessun allarme; le passate finiscono in "scadute"');
+  const esclusi = ['Fatta domani', 'Annullato', 'Gia convertito', 'Chiuso Bianchi', 'FA-2', 'OH passata'];
+  ok(!win.allarmiScadenze().some(x => esclusi.some(e => (x.titolo || '').indexOf(e) >= 0)) && !win.scaduteOra().some(x => x.titolo === 'OH passata'), 'esclusi: attività completate, chiusi, convertiti, incassate, annullati, eventi passati');
+  const m90 = win.allarmiScadenze().find(x => x.titolo === 'Mandato 90gg');
+  ok(!!m90 && m90.gg === 2 && /90/.test(m90.dettaglio), 'mandato senza scadenza → allarme a 90 giorni dalla firma');
+  const tot = win.allarmiScadenze().length;
+
+  win.updateBadges();
+  const bell = win.document.getElementById('bell-btn'), badge = win.document.getElementById('bell-badge');
+  ok(tot === 9 && !!bell && !!badge && badge.style.display === 'inline-flex' && badge.textContent === '9' && /apriPannelloScadenze/.test(bell.getAttribute('onclick')), 'campanella 🔔 in topbar con contatore = 9 allarmi attivi');
+  win.apriPannelloScadenze();
+  const mod = win.document.getElementById('scadenze-modal');
+  const mh = mod ? mod.innerHTML : '';
+  ok(!!mod && /Tra 3 giorni/.test(mh) && /Tra 2 giorni/.test(mh) && /Domani/.test(mh) && /Oggi/.test(mh), 'clic sulla campanella → pannello con i 4 livelli');
+  ok(/Già scadute/.test(mh) && /Scaduta ieri laltro/.test(mh) && /Visura scaduta/.test(mh), 'pannello: sezione "Già scadute" con le voci passate');
+  win.closeModal();
+  win.go('da-fare');
+  const dh = win.document.getElementById('content').innerHTML;
+  ok(/Allarmi scadenze \(9\)/.test(dh) && /Apri pannello/.test(dh) && /già scadute: 2/.test(dh), 'riassunto allarmi nella schermata "Da Fare Oggi"');
+
+  DB.attivita = []; DB.appuntamenti = []; DB.chiamate = []; DB.clienti = []; DB.documenti = []; DB.fatture = []; DB.openhouses = []; DB.mandati = [];
+  win.updateBadges();
+  ok(win.allarmiScadenze().length === 0 && win.document.getElementById('bell-badge').style.display === 'none', 'senza scadenze il contatore della campanella si nasconde');
+  win.close();
+}
+
+async function testQRApp() {
+  section('9. v10.5: QR in Sincronizzazione + avviso "non collegato al cloud"');
+  const code = 'IMMOCRM1.' + Buffer.from(JSON.stringify({ v: 3, m: 'gist', g: 'gistQR', t: 'tk-qr', e: 1, r: '', s: 'c2FsZQ==' })).toString('base64');
+  const win = makeWindow('https://localhost/index.html#codice=' + encodeURIComponent(code));
+  await waitUntil(() => win.DB && typeof win.leggiCodiceDaURL === 'function');
+  await waitUntil(() => win.document.getElementById('login-code').value, 4000).catch(() => {});
+  const inp = win.document.getElementById('login-code');
+  ok(inp && inp.value === code, 'aprendo l\'app col link del QR (#codice=…) il codice è già inserito nel login');
+  const wrap = win.document.getElementById('login-code-wrap'), hint = win.document.getElementById('qr-code-hint');
+  ok(wrap && wrap.style.display === 'block' && hint && hint.style.display === 'block' && /solo la password/i.test(hint.textContent), 'campo codice visibile + avviso "scrivi solo la password"');
+
+  win.saveAuth({ loggedIn: true, nome: 'Test', ts: Date.now() });
+  win.checkLoginRequired();
+  await new Promise(r => setTimeout(r, 120));
+  win.go('impostazioni');
+  let card = win.document.getElementById('sync-card').outerHTML;
+  ok(/sy-avviso-cloud/.test(card) && /non è ancora collegato al cloud/i.test(card), 'pannello Sincronizzazione: avviso chiaro quando il dispositivo NON è collegato al cloud');
+  await win.ImmoSync.setConfig({ mode: 'gist', token: 'tk-qr2', gistId: 'gistQR2', encrypt: false });
+  card = win.syncCardHTML();
+  ok(!/sy-avviso-cloud/.test(card) && /QR — collega il telefono/.test(card) && /sy-qr/.test(card), 'cloud collegato: avviso sparito e sezione QR presente nel pannello');
+  await win.caricaQRSync();
+  const box = win.document.getElementById('sy-qr');
+  ok(!!box && box.innerHTML.indexOf('<svg') >= 0 && box.innerHTML.indexOf('viewBox') >= 0, 'caricaQRSync inserisce il QR (SVG) nel pannello');
+  win.close();
+}
+
+async function testProtezione() {
+  section('10. v10.5: protezione dati da pulizia del computer');
+  const EMG_A = I.EMG_A, EMG_B = I.EMG_B;
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.verificaProtezione === 'function');
+  let persistCalls = 0;
+  Object.defineProperty(win.navigator, 'storage', {
+    value: { persist: async () => { persistCalls++; return true; }, persisted: async () => true, estimate: async () => ({ usage: 1234567, quota: 500000000 }) },
+    configurable: true
+  });
+  ok(await win.ImmoSync.requestPersist() === true && persistCalls === 1 && await win.ImmoSync.isPersisted() === true, 'requestPersist chiama navigator.storage.persist (StorageManager) e isPersisted risponde');
+  win.DB.clienti.push({ id: 555, nome: 'Protetto', cognome: 'Sempre', updatedAt: Date.now() });
+  win.DB._ts = Date.now();
+  win.save();
+  const eA = JSON.parse(win.localStorage.getItem(EMG_A) || 'null'), eB = JSON.parse(win.localStorage.getItem(EMG_B) || 'null');
+  ok(eA && eB && eA.db && eB.db && eA.db.clienti.some(x => x.id === 555) && eB.db.clienti.some(x => x.id === 555) && eA.ts > 0, 'save() crea la DOPPIA copia di emergenza (A e B) con dati e timestamp');
+
+  // boot con sola copia di emergenza (pulizia del PC: principale + IndexedDB sparite)
+  const win2 = makeWindow();
+  await waitUntil(() => win2.ImmoSync && win2.ImmoSync.boot);
+  const emgPayload = { ts: Date.now(), emg: 1, db: { clienti: [{ id: 1, nome: 'Superstite', updatedAt: Date.now() }], _ts: Date.now(), settings: { agente: 'SD' } } };
+  win2.localStorage.setItem(EMG_A, JSON.stringify(emgPayload));
+  win2.localStorage.setItem(EMG_B, JSON.stringify(emgPayload));
+  const b2 = await win2.ImmoSync.boot();
+  ok(b2 && b2.source === 'emergenza' && b2.db && b2.db.clienti.some(x => x.nome === 'Superstite'), 'boot: senza copia principale e senza IndexedDB → ripristino dalla copia di emergenza');
+  win2.close();
+
+  // boot con solo IndexedDB (localStorage principale cancellata): l'inviluppo {db,ts} va scartato
+  const win3 = makeWindow();
+  await waitUntil(() => win3.DB && win3.DB.clienti);
+  win3.DB.clienti.push({ id: 666, nome: 'SoloIDB', updatedAt: Date.now() });
+  win3.DB._ts = Date.now();
+  await win3.ImmoSync.mirror(win3.DB);
+  win3.localStorage.removeItem('immocrm_pro_v10');
+  win3.localStorage.removeItem(I.LS_MAIN);
+  const b3 = await win3.ImmoSync.boot();
+  ok(b3 && b3.source === 'indexeddb' && b3.db && Array.isArray(b3.db.clienti) && b3.db.clienti.some(x => x.nome === 'SoloIDB'), 'boot da solo IndexedDB: inviluppo scartato, dati integri (regressione v10.5)');
+  win3.close();
+
+  const r = await win.ImmoSync.verifyStorage();
+  ok(r && r.mainLS.ok && r.idb.ok && r.emgA.ok && r.emgB.ok && r.persisted === true && r.persistSupported === true && r.quota === 500000000 && r.storico >= 1, 'verifyStorage: report completo (principale, IndexedDB+storico, copie A/B, persistenza, quota)');
+  win.saveAuth({ loggedIn: true, nome: 'Test', ts: Date.now() });
+  win.checkLoginRequired();
+  await new Promise(r2 => setTimeout(r2, 120));
+  win.go('impostazioni');
+  await win.verificaProtezione();
+  const pm = win.document.getElementById('protect-modal');
+  ok(!!win.document.getElementById('protect-card') && !!win.document.getElementById('protect-check-btn') && !!pm && /Copia di emergenza A/.test(pm.innerHTML) && /Copia di emergenza B/.test(pm.innerHTML) && /Salvataggio persistente/.test(pm.innerHTML) && !/StorageManager/.test(pm.innerHTML), 'Impostazioni: card "Protezione dati" e il pulsante di verifica apre il report con tutte le copie');
+  win.closeModal();
+  Object.defineProperty(win.navigator, 'storage', {
+    value: { persist: async () => false, persisted: async () => false, estimate: async () => ({ usage: 1, quota: 100 }) },
+    configurable: true
+  });
+  await win.attivaPersistenza();
+  const help = win.document.getElementById('persist-help-modal');
+  ok(!!help && /Installa l'app/.test(help.innerHTML) && !/Persistenza non concessa/.test(help.innerHTML) && !/StorageManager/.test(help.innerHTML), 'se il browser non blocca i dati: istruzione chiara: installa l’app, senza gergo');
+  win.closeModal();
+  win.confirm = () => true;
+  try { Object.defineProperty(win.location, 'reload', { value: () => {}, configurable: true }); } catch (e) {}
+  win.resetTotale();
+  ok(win.localStorage.getItem(EMG_A) === null && win.localStorage.getItem(EMG_B) === null && win.localStorage.getItem('immocrm_pro_v10') === null, 'reset totale: cancella anche le copie di emergenza (niente "resurrezione")');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -435,6 +724,10 @@ async function testApp() {
   try { await testMultiDevice(); } catch (e) { failed++; failures.push('multidev: ' + e.message); console.log('  ❌ multidev exception', e.message); }
   try { await testPasswordChange(); } catch (e) { failed++; failures.push('passchg: ' + e.message); console.log('  ❌ passchg exception', e.message); }
   try { await testApp(); } catch (e) { failed++; failures.push('app: ' + e.message); console.log('  ❌ app exception', e.message); }
+  try { await testQR(); } catch (e) { failed++; failures.push('qr: ' + e.message); console.log('  ❌ qr exception', e.message); }
+  try { await testAllarmi(); } catch (e) { failed++; failures.push('allarmi: ' + e.message); console.log('  ❌ allarmi exception', e.message); }
+  try { await testQRApp(); } catch (e) { failed++; failures.push('qrapp: ' + e.message); console.log('  ❌ qrapp exception', e.message); }
+  try { await testProtezione(); } catch (e) { failed++; failures.push('protezione: ' + e.message); console.log('  ❌ protezione exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }
