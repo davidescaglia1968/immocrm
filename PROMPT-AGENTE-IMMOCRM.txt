@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.12 · 28/09/2026 · sito live v10.5.2)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.13 · 28/09/2026 · sito live v10.5.2)
 ================================================================================
 
 COME SI USA
@@ -74,9 +74,17 @@ Dopo le due analisi, fai rendere l'app al massimo dentro il compito:
   - Aggiorna la riga "Ultima ricerca web" con data e esito.
     La ricerca vecchia non vale più.
 
-Ultima ricerca web: 24/09/2026, terza passata (valutatore).
-  Software italiani e fonti degli atti ricontrollati. Da rifare alla
-  prossima modifica del valutatore. Non trattarla come verità eterna.
+Ultima ricerca web: 28/09/2026, ricerca contatti (nome e indirizzo).
+  I CRM immobiliari cercano nello stesso posto nome, telefono e via.
+  L'ordine può essere invertito (cognome prima del nome). Gli accenti
+  e l'apostrofo non devono far sparire la persona. Sostituire tutta
+  la pagina a ogni lettera toglie il cursore: la casella va tenuta
+  accesa. Un tasto colorato acceso non deve nascondere chi si sta
+  cercando. Non si aggiunge un archivio nuovo e non si scrapa un
+  portale. La correzione è in locale, v10.5.4, non ancora sul sito.
+  Il sito live resta v10.5.2 finché Davide non dice pubblica.
+  La ricerca del valutatore del 24/09/2026 resta nel blocco sotto:
+  non è stata rifatta oggi.
   - I dati partono già cifrati dal dispositivo (AES-256-GCM, chiave
     da password + sale, PBKDF2-SHA256, 210.000 giri). GitHub conserva
     la scatola chiusa, non i nomi. Questo è già "conoscenza zero"
