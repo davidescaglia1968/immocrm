@@ -712,6 +712,40 @@ async function testProtezione() {
   win.close();
 }
 
+async function testCerca() {
+  section('Ricerca nome e indirizzo');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.matchRicerca === 'function' && typeof win.renderContatti === 'function');
+  ok(typeof win.matchRicerca === 'function', 'matchRicerca è nel programma');
+  ok(win.matchRicerca(['Mario', 'Rossi', 'Via Città, 12'], 'rossi mario') === true, 'cognome prima del nome');
+  ok(win.matchRicerca(['Mario', 'Rossi', 'Via Città, 12'], 'citta 12') === true, 'via senza accento');
+  ok(win.matchRicerca(['Mario', 'Rossi', '333 123 4567'], '333123') === true, 'telefono senza spazi');
+  ok(win.matchRicerca(['Mario', 'Rossi', 'Via Roma 12'], 'nessunoqui') === false, 'nome assente non esce');
+  ok(win.matchRicerca(["Sant'Antonino 4", 'Anna'], 'sant antonino') === true, 'apostrofo nella via');
+  win.DB.clienti = [{ id: 501, nome: 'Giuseppe', cognome: 'Neri', tipo: 'venditore', fonte: 'Immobiliare.it', via: 'Via Beverora', civico: '8', citta: 'Piacenza', telefono: '333 111 2222', stato: 'tiepido', presentazioneInviata: 'no' }];
+  const content = win.document.getElementById('content');
+  win.renderContatti(content);
+  const strada = Array.from(content.querySelectorAll('button')).find(b => /Per strada/.test(b.textContent));
+  ok(!!strada, 'il tasto Per strada c\'è');
+  if (strada) strada.click();
+  const spento = win.document.getElementById('content').innerHTML;
+  ok(!/Giuseppe/.test(spento), 'Per strada da solo nasconde chi non è per strada');
+  const box = win.document.getElementById('ct-cerca');
+  box.value = 'neri beverora';
+  box.focus();
+  win.filtraContatti(box);
+  const html = win.document.getElementById('content').innerHTML;
+  ok(/Giuseppe/.test(html) && /Beverora/.test(html), 'con Per strada acceso la ricerca trova comunque nome e via');
+  ok(/Cerco in tutta la rubrica/.test(html), 'la casella dice che guarda tutta la rubrica');
+  const dopo = win.document.getElementById('ct-cerca');
+  ok(!!dopo && dopo.value === 'neri beverora', 'il testo resta nella casella');
+  ok(win.document.activeElement === dopo, 'il cursore resta nella casella');
+  win.runGlobalSearch('beverora');
+  const sr = win.document.getElementById('search-results').innerHTML;
+  ok(/Giuseppe/.test(sr) && /Beverora/.test(sr), 'la lente in alto trova la via');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -728,6 +762,7 @@ async function testProtezione() {
   try { await testAllarmi(); } catch (e) { failed++; failures.push('allarmi: ' + e.message); console.log('  ❌ allarmi exception', e.message); }
   try { await testQRApp(); } catch (e) { failed++; failures.push('qrapp: ' + e.message); console.log('  ❌ qrapp exception', e.message); }
   try { await testProtezione(); } catch (e) { failed++; failures.push('protezione: ' + e.message); console.log('  ❌ protezione exception', e.message); }
+  try { await testCerca(); } catch (e) { failed++; failures.push('cerca: ' + e.message); console.log('  ❌ cerca exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }

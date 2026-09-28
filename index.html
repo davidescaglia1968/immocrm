@@ -18,14 +18,14 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="preconnect" href="https://api.github.com" crossorigin>
-<title>ImmoCRM Pro v10.5.2 — Scaglia · Piacenza</title>
+<title>ImmoCRM Pro v10.5.4 — Scaglia · Piacenza</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
-<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.2 · Real Estate Operating System</div></div>
+<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.4 · Real Estate Operating System</div></div>
 <div id="login-form">
 <div class="login-field"><label>Password</label><input type="password" id="login-pass" inputmode="text" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
 <button class="login-btn" id="login-btn" onclick="doLogin()">🔐 Accedi</button>
@@ -80,7 +80,7 @@
 </div>
 <div id="toast-container"></div>
 <div id="offline-banner" style="display:none">📴 Sei offline: lavori lo stesso, i dati restano salvati e si sincronizzano appena torna la linea.</div>
-<div id="search-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGlobalSearch()"><div class="search-modal" onclick="event.stopPropagation()"><div class="search-head"><input id="search-input" placeholder="Cerca…" oninput="runGlobalSearch(this.value)"><button onclick="closeGlobalSearch()">ESC</button></div><div id="search-results"></div></div></div>
+<div id="search-overlay" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeGlobalSearch()"><div class="search-modal" onclick="event.stopPropagation()"><div class="search-head"><input id="search-input" placeholder="Nome o indirizzo…" oninput="runGlobalSearch(this.value)"><button onclick="closeGlobalSearch()">ESC</button></div><div id="search-results"></div></div></div>
 <script src="sync.js" defer></script>
 <script src="app.js" defer></script>
 </body>

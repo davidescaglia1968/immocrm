@@ -36,7 +36,9 @@ const TIPO_IMM=['appartamento','attico','villa','bilocale','trilocale','monoloca
 const tipoIco={appartamento:'🏠',attico:'🏙️',villa:'🏡',bilocale:'🏠',trilocale:'🏠',monolocale:'🏠',mansarda:'🏠',box:'🚗',negozio:'🏪',ufficio:'🏢',capannone:'🏭',terreno:'🌳',rustico:'🏚️'};
 const STATO_IMM=['disponibile','trattativa','venduto','locato','ritirato'];
 const statoColor={freddo:'var(--blue)',tiepido:'var(--orange)',caldo:'var(--red)',chiuso:'var(--green)'};
-const FONTE_LEAD=['Sito web','Google','Facebook','Instagram','WhatsApp','Telefono','Email','Referral','Portale','Passaparola','Pagine Bianche','Per strada','Al bar','Open House','Altro'];
+const FONTE_LEAD=['Immobiliare.it','Idealista','Casa.it','Wikicasa','Subito','Portale','Sito web','Google','Facebook','Instagram','WhatsApp','Telefono','Email','Referral','Passaparola','Pagine Bianche','Per strada','Al bar','Open House','Altro'];
+const FONTI_WEB=['Immobiliare.it','Idealista','Casa.it','Wikicasa','Subito','Portale','Sito web'];
+function pubblicatoSulWeb(c){if(!c)return false;if(c.pubblicatoWeb==='si')return true;if(c.pubblicatoWeb==='no')return false;return FONTI_WEB.indexOf(c.fonte)>=0}
 const PORTALI=['Immobiliare.it','Idealista','Casa.it','Subito','Wikicasa','Bakeca','Altro'];
 const TIPI_STEP={chiamata:'📞',whatsapp:'💬',email:'📧',visita:'🏠',nota:'📝'};
 const STATI_CHIUSI_CH=['convertito','non-interessato','perso'];
@@ -430,13 +432,35 @@ showToast('🔔 '+n+(n===1?' scadenza in allarme':' scadenze in allarme')+' (3-2
 const btn=document.getElementById('bell-btn');if(btn){btn.classList.add('ring');setTimeout(()=>btn.classList.remove('ring'),700)}
 if(typeof Notification!=='undefined'&&Notification.permission==='granted'){try{new Notification('ImmoCRM — '+n+' scadenze in allarme',{body:'Tocca la campanella 🔔 per il pannello'})}catch(e){}}}catch(e){}}
 function setBadge(id,n){const e=document.getElementById('badge-'+id);if(!e)return;if(n>0){e.style.display='inline-flex';e.textContent=n}else e.style.display='none'}
+
+function testoCerca(s){let t=String(s==null?'':s).toLowerCase();try{t=t.normalize('NFD').replace(/[\u0300-\u036f]/g,'')}catch(e){}t=t.replace(/['’`]/g,'');t=t.replace(/\bv\.le\b/g,'viale').replace(/\bp\.zza\b/g,'piazza').replace(/\bc\.so\b/g,'corso').replace(/\bv\./g,'via ');return t.replace(/[^a-z0-9]+/g,' ').replace(/\s+/g,' ').trim()}
+function cifreCerca(s){return String(s==null?'':s).replace(/\D/g,'')}
+function matchRicerca(campi,q){const raw=String(q==null?'':q).trim();if(!raw)return true;const testo=Array.isArray(campi)?campi.join(' '):String(campi==null?'':campi);const blob=testoCerca(testo);const words=testoCerca(raw).split(' ').filter(Boolean);const wordsOk=words.length>0&&words.every(function(w){return blob.indexOf(w)>=0});const dig=cifreCerca(raw);const digOk=dig.length>=3&&cifreCerca(testo).indexOf(dig)>=0;return wordsOk||digOk}
+function campiContatto(x){if(!x)return '';return [x.nome,x.cognome,x.tipo,x.telefono,x.email,x.via,x.civico,x.indirizzo,x.citta,x.zona,x.indirizzoSpedizione,x.note,x.fonte,typeof fmtIndirizzo==='function'?fmtIndirizzo(x):''].join(' ')}
+function campiChiamata(x){if(!x)return '';return [x.nome,x.telefono,x.indirizzo,x.citta,x.zona,x.esito,x.fonte,x.segnalatoDa].join(' ')}
+function campiImmobile(i){if(!i)return '';let prop='';if(i.proprietarioId){const p=(DB.clienti||[]).find(function(c){return String(c.id)===String(i.proprietarioId)});if(p)prop=[p.nome,p.cognome,p.via,p.civico,p.indirizzo,p.citta].join(' ')}return [i.titolo,i.codice,i.zona,i.citta,i.descrizione,i.fonte,i.tipo,prop].join(' ')}
+function rigaCerca(icon,titolo,sotto,sezione,id){return '<div class="search-result" onclick="apriDaCerca(this)" data-go="'+sezione+'" data-id="'+esc(id)+'"><span>'+icon+'</span><div><b>'+esc(titolo)+'</b>'+(sotto?'<div style="font-size:11px;color:var(--text2)">'+esc(sotto)+'</div>':'')+'</div></div>'}
+function bloccoCerca(titolo,items,mapFn){if(!items.length)return '';const vis=items.slice(0,20);const extra=items.length-vis.length;return '<div class="text-sm text-muted" style="padding:8px 12px 2px">'+esc(titolo)+' · '+items.length+'</div>'+vis.map(mapFn).join('')+(extra?'<div class="text-sm text-muted" style="padding:4px 12px">e altri '+extra+'</div>':'')}
+function apriDaCerca(el){if(!el)return;const sezione=el.getAttribute('data-go')||'contatti';const id=el.getAttribute('data-id');closeGlobalSearch();if(sezione==='contatti'){_contF.quick='';_contF.tipo='';_contF.fonte='';_contF.stato='';_contF.collab='';_contF.pres='';_contF.ricerca=''}go(sezione);setTimeout(function(){if(sezione==='contatti')openContattoModal(id);else if(sezione==='immobili')openImmobileModal(id);else if(sezione==='chiamate')openChiamataModal(id)},80)}
+let _cercaRiprendi=null;
+function riprendiCasella(){const s=_cercaRiprendi;if(!s)return;const el=document.getElementById(s.id);if(!el)return;el.focus();const p=s.pos==null?el.value.length:Math.min(s.pos,el.value.length);try{el.setSelectionRange(p,p)}catch(e){}}
+function filtraTenendoCasella(el,salva,ridisegna){if(!el)return;salva(el.value);const pos=el.selectionStart;const id=el.id;const padre=el.parentNode,dopo=el.nextSibling;document.body.appendChild(el);try{ridisegna()}catch(err){if(padre)padre.insertBefore(el,dopo);throw err}const nuovo=document.getElementById(id);if(nuovo&&nuovo!==el&&nuovo.parentNode)nuovo.parentNode.replaceChild(el,nuovo);else if(el.parentNode===document.body&&padre&&padre.isConnected)padre.insertBefore(el,dopo);if(document.activeElement!==el)el.focus();try{el.setSelectionRange(pos,pos)}catch(e){}}
+function filtraContatti(el){filtraTenendoCasella(el,function(v){_contF.ricerca=v},function(){renderContatti(document.getElementById('content'))})}
+function filtraChiamate(el){filtraTenendoCasella(el,function(v){_chF.ricerca=v},function(){renderChiamate(document.getElementById('content'))})}
+function filtraImmobili(el){filtraTenendoCasella(el,function(v){_immF.ricerca=v},function(){renderImmobili(document.getElementById('content'))})}
+function contattoNelFiltro(x,f,o){const ric=String(f.ricerca||'').trim();if(ric)return matchRicerca(campiContatto(x),ric);if(f.tipo&&x.tipo!==f.tipo)return false;if(f.stato&&x.stato!==f.stato)return false;if(f.fonte&&x.fonte!==f.fonte)return false;if(f.collab&&(x.collaborativo||'')!==f.collab)return false;if(f.pres==='si'&&x.presentazioneInviata!=='si')return false;if(f.pres==='no'&&x.presentazioneInviata==='si')return false;if(f.quick==='richiamo'&&!(x.dataRichiamo&&x.dataRichiamo<=o&&x.stato!=='chiuso'))return false;if(f.quick==='oggi'&&x.dataRichiamo!==o)return false;if(f.quick==='pres-manca'&&x.presentazioneInviata==='si')return false;if(f.quick==='collab'&&x.collaborativo!=='si')return false;if(f.quick==='pb'&&x.fonte!=='Pagine Bianche')return false;if(f.quick==='strada'&&x.fonte!=='Per strada')return false;if(f.quick==='web'&&!pubblicatoSulWeb(x))return false;if(String(f.quick||'').indexOf('tipo-')===0&&x.tipo!==String(f.quick).slice(5))return false;return true}
+
 function openGlobalSearch(){document.getElementById('search-overlay').style.display='flex';setTimeout(()=>document.getElementById('search-input').focus(),50)}
 function closeGlobalSearch(){document.getElementById('search-overlay').style.display='none';document.getElementById('search-results').innerHTML=''}
-function runGlobalSearch(q){const r=document.getElementById('search-results');if(!q){r.innerHTML='';return}const t=q.toLowerCase();let h='';
-(DB.clienti||[]).filter(c=>(`${c.nome} ${c.cognome} ${c.telefono}`.toLowerCase().includes(t))).slice(0,5).forEach(c=>{h+=`<div class="search-result" onclick="closeGlobalSearch();go('contatti');setTimeout(()=>openContattoModal(${c.id}),100)">👤 <b>${esc(c.nome)} ${esc(c.cognome)}</b></div>`});
-(DB.immobili||[]).filter(i=>(`${i.titolo} ${i.codice}`.toLowerCase().includes(t))).slice(0,5).forEach(i=>{h+=`<div class="search-result" onclick="closeGlobalSearch();go('immobili');setTimeout(()=>openImmobileModal(${i.id}),100)">🏠 <b>${esc(i.titolo)}</b></div>`});
-(DB.chiamate||[]).filter(x=>(`${x.nome} ${x.telefono}`.toLowerCase().includes(t))).slice(0,5).forEach(x=>{h+=`<div class="search-result" onclick="closeGlobalSearch();go('chiamate');setTimeout(()=>openChiamataModal('${x.id}'),100)">📞 <b>${esc(x.nome)}</b></div>`});
-r.innerHTML=h||'<div class="empty-state">Nessun risultato</div>'}
+function runGlobalSearch(q){const r=document.getElementById('search-results');const t=String(q||'').trim();if(!t){r.innerHTML='';return}
+const cli=(DB.clienti||[]).filter(c=>matchRicerca(campiContatto(c),t));
+const imm=(DB.immobili||[]).filter(i=>matchRicerca(campiImmobile(i),t));
+const ch=(DB.chiamate||[]).filter(x=>matchRicerca(campiChiamata(x),t));
+let h='';
+h+=bloccoCerca('Contatti',cli,c=>{const ind=fmtIndirizzo(c);const sotto=[ucfirst(c.tipo||''),ind,c.citta,c.telefono].filter(Boolean).join(' · ');return rigaCerca('👤',((c.nome||'')+' '+(c.cognome||'')).trim()||'(senza nome)',sotto,'contatti',c.id)});
+h+=bloccoCerca('Immobili',imm,i=>rigaCerca('🏠',i.titolo||i.codice||'Immobile',[i.codice,i.zona,i.citta].filter(Boolean).join(' · '),'immobili',i.id));
+h+=bloccoCerca('Chiamate',ch,x=>rigaCerca('📞',x.nome||'(senza nome)',[x.indirizzo,x.citta,x.telefono].filter(Boolean).join(' · '),'chiamate',x.id));
+r.innerHTML=h||'<div class="empty-state">Nessun nome o indirizzo così. Prova solo il cognome, o solo la via.</div>'}
 function calcolaLeadScore(c){let s=0;const gg=daysSince(c.ultimoContatto||c.dataCreazione);if(gg<=1)s+=15;else if(gg<=7)s+=10;else if(gg<=30)s+=5;else if(gg>90)s-=10;if(c.stato==='caldo')s+=30;else if(c.stato==='tiepido')s+=15;s+=Math.min(((DB.eventi||[]).filter(e=>String(e.contattoId)===String(c.id)).length)*3,30);if((DB.appuntamenti||[]).some(a=>String(a.contattoId)===String(c.id)))s+=30;if((c.fonte||'').match(/referral|passaparola/i))s+=15;if(c.budget>0)s+=10;return Math.max(0,Math.min(100,Math.round(s)))}
 function leadScoreChip(c){const s=calcolaLeadScore(c);const col=s>=70?'var(--red)':s>=40?'var(--orange)':s>=20?'var(--blue)':'var(--text2)';return`<span class="badge" style="background:${col}18;color:${col}">🎯 ${s}</span>`}
 function getZonaInfo(i){if(!DB.zoneOMI||!i)return null;let z=DB.zoneOMI.find(x=>i.zona&&x.zona&&x.zona.toLowerCase()===String(i.zona).toLowerCase());if(!z)z=DB.zoneOMI.find(x=>i.citta&&x.comune&&x.comune.toLowerCase()===String(i.citta).toLowerCase());return z?{...z,mqMid:Math.round((z.mqMin+z.mqMax)/2)}:null}
@@ -542,8 +566,8 @@ ${azioni.map(a=>`<div class="row" style="padding:9px 0;border-bottom:1px solid v
 <div class="row" style="margin-top:10px"><button class="btn btn-primary btn-sm" onclick="saveObiettivi()">Salva obiettivi</button><button class="btn btn-gold btn-sm" onclick="openMandatoModal()">+ Registra incarico</button></div></div></div>`}
 function saveObiettivi(){DB.obiettivi.incarichiSettimana=Math.max(1,parseInt(document.getElementById('ob-sett').value)||1);DB.obiettivi.incarichiMese=Math.max(1,parseInt(document.getElementById('ob-mese').value)||1);DB.obiettivi.chiamateGiorno=Math.max(1,parseInt(document.getElementById('ob-ch').value)||1);save();render();showToast('Obiettivi salvati ✓')}
 /* CHIAMATE */
-function renderChiamate(c){const f=_chF;const ric=f.ricerca.toLowerCase();
-const lista=(DB.chiamate||[]).filter(x=>(!f.stato||x.stato===f.stato)&&(!ric||(`${x.nome} ${x.telefono} ${x.indirizzo}`.toLowerCase().includes(ric)))).sort((a,b)=>(b.dataChiamata||'').localeCompare(a.dataChiamata||''));
+function renderChiamate(c){const f=_chF;const ric=String(f.ricerca||'').trim();
+const lista=(DB.chiamate||[]).filter(x=>(ric?matchRicerca(campiChiamata(x),ric):(!f.stato||x.stato===f.stato))).sort((a,b)=>(b.dataChiamata||'').localeCompare(a.dataChiamata||''));
 const daF=(DB.chiamate||[]).filter(x=>x.dataRichiamo&&x.dataRichiamo<=today()&&STATI_CHIUSI_CH.indexOf(x.stato)<0);
 const tot=(DB.chiamate||[]).length;const conv=(DB.chiamate||[]).filter(x=>x.stato==='convertito').length;const pres=(DB.chiamate||[]).filter(x=>x.dispPresentazione==='si').length;
 const stati=[['da-chiamare','⚪ Da chiamare'],['da-richiamare','🔵 Da richiamare'],['presentazione-ok','🟢 Presentaz. OK'],['appuntamento','🟣 Appuntamento'],['convertito','✅ Convertito'],['non-interessato','🟠 Non interess.'],['perso','🔴 Perso']];
@@ -552,7 +576,7 @@ c.innerHTML=`<div class="stack">
 <div><div class="card-title" style="font-size:17px">📞 Registro Chiamate</div><div class="card-subtitle">Pagine Bianche, strada, bar, segnalazioni</div></div>
 <div class="row-tight"><div style="text-align:center;padding:8px 14px;background:var(--bg2);border-radius:10px"><div style="font-size:9px;color:var(--text2)">DA RICHIAMARE</div><div style="font-size:22px;font-weight:700;color:${daF.length?'var(--red)':'var(--green)'}">${daF.length}</div></div><button class="btn btn-primary" onclick="openChiamataModal()">+ Nuova</button></div></div>
 <div class="grid4" style="margin-top:14px"><div class="stat-box"><div class="stat-num">${tot}</div><div class="stat-lbl">in lista</div></div><div class="stat-box"><div class="stat-num">${pres}</div><div class="stat-lbl">accettano presentaz.</div></div><div class="stat-box"><div class="stat-num">${conv}</div><div class="stat-lbl">convertiti</div></div><div class="stat-box"><div class="stat-num">${tot?Math.round(conv/tot*100):0}%</div><div class="stat-lbl">conversione</div></div></div></div>
-<div class="row"><div class="search-bar">🔍 <input value="${esc(f.ricerca)}" placeholder="Cerca…" oninput="_chF.ricerca=this.value;renderChiamate(document.getElementById('content'))"></div>
+<div class="row"><div class="search-bar">🔍 <input id="ch-cerca" value="${esc(f.ricerca)}" placeholder="Nome o indirizzo…" oninput="filtraChiamate(this)" autocomplete="off"></div>
 <select class="inp" style="width:auto" onchange="_chF.stato=this.value;renderChiamate(document.getElementById('content'))"><option value="">Tutti gli stati</option>${stati.map(s=>`<option value="${s[0]}" ${f.stato===s[0]?'selected':''}>${s[1]}</option>`).join('')}</select></div>
 <div class="card">${lista.length===0?'<div class="empty-state"><div class="icon">📞</div>Nessuna persona. Aggiungila o importa una rubrica.</div>':`<div class="table-wrap"><table class="table"><thead><tr><th>Persona</th><th>Fonte</th><th>Stato</th><th>Present.</th><th>Richiamo</th><th>Segnal.</th><th></th></tr></thead><tbody>${lista.map(ch=>`<tr class="row-clickable" onclick="openChiamataModal('${ch.id}')"><td><b>${esc(ch.nome)}</b><div style="font-size:10px;color:var(--text2)">${esc(ch.telefono||'')}</div></td><td><span class="badge badge-gray">${esc(ch.fonte||'—')}</span></td><td>${esc(ch.stato||'')}</td><td>${ch.dispPresentazione==='si'?'✅':ch.dispPresentazione==='forse'?'🟡':'—'}</td><td style="font-size:11px">${ch.dataRichiamo?fmtDateShort(ch.dataRichiamo):'—'}</td><td>${(ch.segnalazioni||[]).length||'—'}</td><td onclick="event.stopPropagation()"><div class="row-tight">${ch.telefono?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${waNumber(ch.telefono)}','_self')">📞</button>`:''}<button class="btn btn-success btn-xs" onclick="regiaEsito('${ch.id}')">✅</button></div></td></tr>`).join('')}</tbody></table></div>`}</div></div>`}
 function openChiamataModal(id){const ch=id?trovaCh(id):{};const fonti=['Pagine Bianche','Per strada','Al bar','Referral','Conoscente','Porta a porta','Altro'];const stati=['da-chiamare','da-richiamare','presentazione-ok','appuntamento','convertito','non-interessato','perso'];
@@ -628,23 +652,8 @@ function importaChiamateInContatti(){const ex={};(DB.clienti||[]).forEach(c=>{co
 function collabChip(c){const v=c.collaborativo||'';if(v==='si')return'<span class="badge badge-green">collaborativo</span>';if(v==='forse')return'<span class="badge badge-orange">forse</span>';if(v==='no')return'<span class="badge badge-red">non coll.</span>';return'<span class="badge badge-gray">—</span>'}
 function presChip(c){if(c.presentazioneInviata==='si')return`<span class="badge badge-green">📬 ${c.dataPresentazione?fmtDateShort(c.dataPresentazione):'inviata'}</span>`;return'<span class="badge badge-gray">📬 no</span>'}
 function richiamoCell(c){if(!c.dataRichiamo)return'<span class="text-muted">—</span>';const o=today();const late=c.dataRichiamo<o&&c.stato!=='chiuso';return`<span class="${late?'text-red':'text-gold'}" style="font-weight:600">${late?'⏰ ':''}${fmtDateShort(c.dataRichiamo)}</span>`}
-function renderContatti(c){const f=_contF;const ric=(f.ricerca||'').toLowerCase();const o=today();
-let lista=(DB.clienti||[]).filter(x=>{
-if(f.tipo&&x.tipo!==f.tipo)return false;
-if(f.stato&&x.stato!==f.stato)return false;
-if(f.fonte&&x.fonte!==f.fonte)return false;
-if(f.collab&&(x.collaborativo||'')!==f.collab)return false;
-if(f.pres==='si'&&x.presentazioneInviata!=='si')return false;
-if(f.pres==='no'&&x.presentazioneInviata==='si')return false;
-if(f.quick==='richiamo'&&!(x.dataRichiamo&&x.dataRichiamo<=o&&x.stato!=='chiuso'))return false;
-if(f.quick==='oggi'&&x.dataRichiamo!==o)return false;
-if(f.quick==='pres-manca'&&x.presentazioneInviata==='si')return false;
-if(f.quick==='collab'&&x.collaborativo!=='si')return false;
-if(f.quick==='pb'&&x.fonte!=='Pagine Bianche')return false;
-if(f.quick==='strada'&&x.fonte!=='Per strada')return false;
-if(ric&&!(`${x.nome} ${x.cognome} ${x.telefono} ${x.via||''} ${x.civico||''} ${x.indirizzo||''} ${x.citta||''}`.toLowerCase().includes(ric)))return false;
-return true;
-}).sort((a,b)=>{
+function renderContatti(c){const f=_contF;const ric=String(f.ricerca||'').trim();const o=today();
+let lista=(DB.clienti||[]).filter(x=>contattoNelFiltro(x,f,o)).sort((a,b)=>{
 const ar=a.dataRichiamo||'9',br=b.dataRichiamo||'9';
 if(ar!==br)return ar.localeCompare(br);
 return calcolaLeadScore(b)-calcolaLeadScore(a);
@@ -653,8 +662,11 @@ const tot=(DB.clienti||[]).length;
 const nRich=(DB.clienti||[]).filter(x=>x.dataRichiamo&&x.dataRichiamo<=o&&x.stato!=='chiuso').length;
 const nPres=(DB.clienti||[]).filter(x=>x.presentazioneInviata==='si').length;
 const nColl=(DB.clienti||[]).filter(x=>x.collaborativo==='si').length;
-const nPb=(DB.clienti||[]).filter(x=>x.fonte==='Pagine Bianche'||x.fonte==='Per strada'||x.fonte==='Al bar').length;
+const nVend=(DB.clienti||[]).filter(x=>x.tipo==='venditore').length;
+const nWeb=(DB.clienti||[]).filter(pubblicatoSulWeb).length;
 const qBtn=(id,lab)=>`<button class="btn ${f.quick===id?'btn-primary':'btn-ghost'} btn-xs" onclick="_contF.quick=_contF.quick==='${id}'?'':'${id}';renderContatti(document.getElementById('content'))">${lab}</button>`;
+const tipoBtns=TIPO_CONTATTO.map(t=>qBtn('tipo-'+t,(t==='venditore'?'🏠 ':(t==='acquirente'?'🔑 ':''))+ucfirst(t))).join(' ');
+const tuttiBtn=`<button class="btn ${f.quick?'btn-ghost':'btn-primary'} btn-xs" onclick="_contF.quick='';renderContatti(document.getElementById('content'))">Tutti</button>`;
 c.innerHTML=`<div class="stack">
 <div class="grid4">
 <div class="stat-box"><div class="stat-num">${tot}</div><div class="stat-lbl">in rubrica</div></div>
@@ -662,14 +674,14 @@ c.innerHTML=`<div class="stack">
 <div class="stat-box"><div class="stat-num">${nPres}</div><div class="stat-lbl">presentazione inviata</div></div>
 <div class="stat-box"><div class="stat-num">${nColl}</div><div class="stat-lbl">collaborativi</div></div></div>
 <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
-<div class="search-bar">🔍 <input value="${esc(f.ricerca)}" placeholder="Cerca nome, tel, indirizzo…" oninput="_contF.ricerca=this.value;renderContatti(document.getElementById('content'))"></div>
+<div class="search-bar">🔍 <input id="ct-cerca" value="${esc(f.ricerca)}" placeholder="Nome, cognome o via…" oninput="filtraContatti(this)" autocomplete="off"></div>
 <select class="inp" style="width:auto" onchange="_contF.tipo=this.value;renderContatti(document.getElementById('content'))"><option value="">Tutti i tipi</option>${TIPO_CONTATTO.map(x=>`<option value="${x}" ${f.tipo===x?'selected':''}>${ucfirst(x)}</option>`).join('')}</select>
 <select class="inp" style="width:auto" onchange="_contF.fonte=this.value;renderContatti(document.getElementById('content'))"><option value="">Tutte le fonti</option>${FONTE_LEAD.map(x=>`<option ${f.fonte===x?'selected':''}>${x}</option>`).join('')}</select>
 <select class="inp" style="width:auto" onchange="_contF.stato=this.value;renderContatti(document.getElementById('content'))"><option value="">Tutti gli stati</option>${['freddo','tiepido','caldo','chiuso'].map(s=>`<option value="${s}" ${f.stato===s?'selected':''}>${s}</option>`).join('')}</select>
 <button class="btn btn-gold" onclick="importaChiamateInContatti()">📥 Da Pagine Bianche / strada</button>
 <button class="btn btn-primary" onclick="openContattoModal()">+ Nuovo</button></div>
-<div class="row" style="gap:6px;flex-wrap:wrap">${qBtn('richiamo','⏰ Da richiamare')} ${qBtn('pres-manca','📬 Senza presentazione')} ${qBtn('collab','✅ Collaborativi')} ${qBtn('pb','📒 Pagine Bianche')} ${qBtn('strada','🚶 Per strada')}<span class="text-muted text-sm" style="margin-left:auto">${nPb} da PB/strada/bar · ${lista.length} visibili</span></div>
-<div class="card">${lista.length===0?'<div class="empty-state"><div class="icon">👥</div>Nessun contatto. Aggiungine uno o importa da Chiamate (Pagine Bianche / strada).</div>':`<div class="table-wrap"><table class="table"><thead><tr><th>Contatto</th><th>Tel</th><th>Fonte</th><th>Primo contatto</th><th>Richiamo</th><th>Collab.</th><th>Presentaz.</th><th></th></tr></thead><tbody>${lista.map(x=>`<tr class="row-clickable" onclick="openContattoModal(${x.id})"><td><b>${esc(x.nome)} ${esc(x.cognome||'')}</b><div style="font-size:10px;color:var(--text2)">${esc(fmtIndirizzo(x)||'')}${fmtIndirizzo(x)&&x.citta?' · ':''}${esc(x.citta||'')}${residenzaLabel(x)?' · '+residenzaLabel(x):''}</div></td><td style="font-size:12px">${esc(x.telefono||'—')}</td><td><span class="badge badge-gray">${esc(x.fonte||'—')}</span></td><td style="font-size:11px">${x.dataPrimoContatto?fmtDateShort(x.dataPrimoContatto):'—'}</td><td>${richiamoCell(x)}</td><td>${collabChip(x)}</td><td>${presChip(x)}</td><td onclick="event.stopPropagation()"><div class="row-tight">${x.telefono?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${waNumber(x.telefono)}','_self')">📞</button><button class="btn btn-gold btn-xs" onclick="whatsappCliente(${x.id})">💬</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`}</div></div>`}
+<div class="row" style="gap:6px;flex-wrap:wrap">${tuttiBtn} ${qBtn('web','🌐 Pubblicato sul web')} ${qBtn('richiamo','⏰ Da richiamare')} ${qBtn('pres-manca','📬 Senza presentazione')} ${qBtn('collab','✅ Collaborativi')} ${qBtn('pb','📒 Pagine Bianche')} ${qBtn('strada','🚶 Per strada')} ${tipoBtns}<span class="text-muted text-sm" style="margin-left:auto">${ric?'Cerco in tutta la rubrica · ':''}${nWeb} sul web · ${nVend} venditori · ${lista.length} visibili</span></div>
+<div class="card">${lista.length===0?(tot?'<div class="empty-state"><div class="icon">👥</div>'+esc(ric?'Nessuno con questo nome o indirizzo. Prova solo il cognome, o solo la via.':(f.quick==='web'?"Nessuno con l'annuncio sul web. Premi Tutti per vedere gli altri.":'Nessuno con questo tasto. Premi Tutti per vedere tutta la rubrica.'))+'</div>':'<div class="empty-state"><div class="icon">👥</div>Nessun contatto. Aggiungine uno con + Nuovo.</div>'):`<div class="table-wrap"><table class="table"><thead><tr><th>Contatto</th><th>Tel</th><th>Fonte</th><th>Primo contatto</th><th>Richiamo</th><th>Collab.</th><th>Presentaz.</th><th></th></tr></thead><tbody>${lista.map(x=>`<tr class="row-clickable" onclick="openContattoModal(${x.id})"><td><b>${esc(x.nome)} ${esc(x.cognome||'')}</b> <span class="badge ${x.tipo==='venditore'?'badge-gold':'badge-gray'}">${esc(ucfirst(x.tipo||'altro'))}</span>${pubblicatoSulWeb(x)?' <span class="badge badge-gold">🌐 web</span>':''}<div style="font-size:10px;color:var(--text2)">${esc(fmtIndirizzo(x)||'')}${fmtIndirizzo(x)&&x.citta?' · ':''}${esc(x.citta||'')}${residenzaLabel(x)?' · '+residenzaLabel(x):''}</div></td><td style="font-size:12px">${esc(x.telefono||'—')}</td><td><span class="badge badge-gray">${esc(x.fonte||'—')}</span></td><td style="font-size:11px">${x.dataPrimoContatto?fmtDateShort(x.dataPrimoContatto):'—'}</td><td>${richiamoCell(x)}</td><td>${collabChip(x)}</td><td>${presChip(x)}</td><td onclick="event.stopPropagation()"><div class="row-tight">${x.telefono?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${waNumber(x.telefono)}','_self')">📞</button><button class="btn btn-gold btn-xs" onclick="whatsappCliente(${x.id})">💬</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`}</div></div>`}
 function openContattoModal(id){const ct=id?(DB.clienti||[]).find(x=>String(x.id)===String(id)):{};
 const events=id?(DB.eventi||[]).filter(e=>String(e.contattoId)===String(id)).sort((a,b)=>new Date(b.data)-new Date(a.data)):[];
 const overdue=ct.dataRichiamo&&ct.dataRichiamo<today()&&ct.stato!=='chiuso';
@@ -711,8 +723,9 @@ ${id?`<div style="margin-top:16px;border-top:1px solid var(--border);padding-top
 <div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Annulla</button>${id?`<button class="btn btn-danger" onclick="deleteContatto(${id})">Elimina</button>`:''}<button class="btn btn-primary" onclick="saveContatto(${id||0})">${id?'Salva':'Crea'}</button></div></div></div>`)}
 function segnaPresentazione(id){const c=(DB.clienti||[]).find(x=>String(x.id)===String(id));if(!c)return;c.presentazioneInviata='si';c.dataPresentazione=today();if(!c.presentazioneModo)c.presentazioneModo='di persona';if(!c.indirizzoSpedizione)c.indirizzoSpedizione=c.indirizzo||'';c.ultimoContatto=today();save();closeModal();showToast('📬 Presentazione segnata come inviata');openContattoModal(id)}
 function saveContatto(id){const g=v=>{const el=document.getElementById(v);return el?el.value:''};
-const d={nome:g('ct-nome').trim(),cognome:g('ct-cognome').trim(),telefono:g('ct-tel').trim(),email:g('ct-email').trim(),citta:g('ct-citta').trim(),via:g('ct-via').trim(),civico:g('ct-civ').trim(),residenzaTipo:g('ct-res'),indirizzo:(g('ct-via').trim()+' '+g('ct-civ').trim()).trim()||g('ct-sped').trim(),zona:g('ct-zona').trim(),tipo:g('ct-tipo'),stato:g('ct-stato'),fonte:g('ct-fonte'),collaborativo:g('ct-collab'),budget:parseInt(g('ct-budget'))||0,note:g('ct-note').trim(),dataPrimoContatto:g('ct-primo')||today(),dataRichiamo:g('ct-rich'),ultimoContatto:g('ct-ult')||today(),presentazioneInviata:g('ct-pres')||'no',dataPresentazione:g('ct-presdata'),presentazioneModo:g('ct-presmodo'),indirizzoSpedizione:g('ct-sped').trim()};
+const d={nome:g('ct-nome').trim(),cognome:g('ct-cognome').trim(),telefono:g('ct-tel').trim(),email:g('ct-email').trim(),citta:g('ct-citta').trim(),via:g('ct-via').trim(),civico:g('ct-civ').trim(),residenzaTipo:g('ct-res'),indirizzo:(g('ct-via').trim()+' '+g('ct-civ').trim()).trim()||g('ct-sped').trim(),zona:g('ct-zona').trim(),tipo:g('ct-tipo'),stato:g('ct-stato'),fonte:g('ct-fonte'),pubblicatoWeb:g('ct-web')||'',collaborativo:g('ct-collab'),budget:parseInt(g('ct-budget'))||0,note:g('ct-note').trim(),dataPrimoContatto:g('ct-primo')||today(),dataRichiamo:g('ct-rich'),ultimoContatto:g('ct-ult')||today(),presentazioneInviata:g('ct-pres')||'no',dataPresentazione:g('ct-presdata'),presentazioneModo:g('ct-presmodo'),indirizzoSpedizione:g('ct-sped').trim()};
 if(d.tipo==='acquirente'){d.budgetMin=parseInt(document.getElementById('ct-bmin')?.value)||0;d.budgetMax=parseInt(document.getElementById('ct-bmax')?.value)||0;d.comuneDesiderato=document.getElementById('ct-com')?.value.trim()||'';d.zonaDesiderata=document.getElementById('ct-zon')?.value.trim()||'';d.tipologiaDesiderata=document.getElementById('ct-tip')?.value||'';d.localiMin=parseInt(document.getElementById('ct-loc')?.value)||0}
+if(!d.pubblicatoWeb&&FONTI_WEB.indexOf(d.fonte)>=0)d.pubblicatoWeb='si';
 if(!d.nome){showToast('Nome obbligatorio','error');return}
 if(id){const i=(DB.clienti||[]).findIndex(x=>String(x.id)===String(id));if(i>=0)DB.clienti[i]={...DB.clienti[i],...d};showToast('Aggiornato ✓')}
 else{d.id=Date.now();d.fase='Nuovo';d.dataCreazione=today();if(!d.ultimoContatto)d.ultimoContatto=today();DB.clienti.push(d);showToast('Creato ✓')}
@@ -723,10 +736,10 @@ const tpls=(DB.settings.waTemplates||[]);const tpl=tpls.find(x=>x.nome==='Presen
 const testo=tpl?tpl.testo.replace(/\{nome\}/g,c.nome||'').replace(/\{agente\}/g,s.agente||'').replace(/\{agenzia\}/g,s.agenziaNome||''):'Ciao '+c.nome+'!';
 window.open('https://wa.me/'+waNumber(c.telefono)+'?text='+encodeURIComponent(testo),'_blank');c.ultimoContatto=today();save()}
 /* IMMOBILI */
-function renderImmobili(c){const f=_immF;const ric=f.ricerca.toLowerCase();
-const lista=(DB.immobili||[]).filter(i=>(!f.tipo||i.tipo===f.tipo)&&(!f.stato||i.stato===f.stato)&&(!ric||(`${i.titolo} ${i.codice} ${i.zona}`.toLowerCase().includes(ric)))).sort((a,b)=>calcolaISV(b).punti-calcolaISV(a).punti);
+function renderImmobili(c){const f=_immF;const ric=String(f.ricerca||'').trim();
+const lista=(DB.immobili||[]).filter(i=>ric?matchRicerca(campiImmobile(i),ric):((!f.tipo||i.tipo===f.tipo)&&(!f.stato||i.stato===f.stato))).sort((a,b)=>calcolaISV(b).punti-calcolaISV(a).punti);
 c.innerHTML=`<div class="stack">
-<div class="row"><div class="search-bar">🔍 <input value="${esc(f.ricerca)}" placeholder="Cerca…" oninput="_immF.ricerca=this.value;renderImmobili(document.getElementById('content'))"></div>
+<div class="row"><div class="search-bar">🔍 <input id="im-cerca" value="${esc(f.ricerca)}" placeholder="Nome, via o zona…" oninput="filtraImmobili(this)" autocomplete="off"></div>
 <select class="inp" style="width:auto" onchange="_immF.stato=this.value;renderImmobili(document.getElementById('content'))"><option value="">Tutti gli stati</option>${STATO_IMM.map(s=>`<option value="${s}" ${f.stato===s?'selected':''}>${s}</option>`).join('')}</select>
 <button class="btn btn-primary" onclick="openImmobileModal()">+ Nuovo</button></div>
 <div class="imm-grid">${lista.length===0?'<div class="empty-state" style="grid-column:1/-1"><div class="icon">🏠</div>Nessun immobile.</div>':lista.map(i=>`<div class="imm-card" onclick="openImmobileModal(${i.id})"><div class="imm-foto">${tipoIco[i.tipo]||'🏠'}<div class="imm-foto-overlay"><span class="badge badge-gray">${i.operazione||'vendita'}</span>${isvChip(i)}</div></div><div style="padding:13px"><b>${esc(i.titolo)}</b><div style="font-size:10px;color:var(--text2)">${esc(i.zona||'')} · ${esc(i.citta||'')}</div><div style="font-size:20px;font-weight:700;color:var(--primary);margin-top:6px">${fmtEuroShort(i.prezzo)}</div><div style="font-size:10px;color:var(--text2);margin-top:4px">${i.superficie?'📐 '+i.superficie+'mq':''}${i.locali?' · 🚪 '+i.locali:''}</div></div></div>`).join('')}</div></div>`}
@@ -1112,7 +1125,7 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.2</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.4</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1196,7 +1209,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.2',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.4',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1381,7 +1394,7 @@ if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristi
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.2','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.4','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
