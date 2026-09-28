@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.13 · 28/09/2026 · sito live v10.5.2)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.13 · 28/09/2026 · sito live v10.5.4)
 ================================================================================
 
 COME SI USA
@@ -287,9 +287,11 @@ dati troppi codici insieme. Da quella lezione:
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione LIVE al 28/09/2026, verificata sul sito: v10.5.2
-             (titolo e login: "v10.5.2"). Cache service worker:
-             immocrm-shell-v7. Pubblicata su richiesta di Davide.
+Versione LIVE al 28/09/2026, verificata sul sito: v10.5.4
+             (titolo e login: "v10.5.4"). Cache service worker:
+             immocrm-shell-v9. Pubblicata su richiesta di Davide.
+             v10.5.5 (scheda Da chiamare che si apre) è solo in locale,
+             non sul sito, finché Davide non dice pubblica.
 Versione NON pubblicata: v10.5.1 esiste solo in un ramo di lavoro di
              una sessione Arena del 24/09/2026 (testi più chiari in
              Impostazioni, finestra se il browser non blocca i dati).
