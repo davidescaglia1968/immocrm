@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.12 · 28/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.12 · 28/09/2026 · sito live v10.5.2)
 ================================================================================
 
 COME SI USA
@@ -198,11 +198,11 @@ MACCHINA DI VALUTAZIONE — Piacenza, residenziale. Regola attiva.
   software italiano ha una funzione utile e lecita; poi rileggere il
   CRM. I semestri vecchi si conservano, non si cancellano.
 
-  Codice. In locale, non sul sito, la v10.5.2 registra già prezzo
-  pubblicato e prezzo di vendita e non inventa più i confronti.
-  Non dire che il sito lo fa. Il sito è la v10.5.0 finché lui non
-  dice pubblica. Quando si toccherà il valutatore: prima le tre righe
-  con fonte e data, poi ci si ferma e glielo si mostra.
+  Codice. Dal 28/09/2026 il sito è la v10.5.2: registra prezzo
+  pubblicato e prezzo di vendita e non inventa i confronti. Non dire
+  che legge tutti i rogiti di Piacenza. Quando si toccherà il
+  valutatore: prima le tre righe con fonte e data, poi ci si ferma
+  e glielo si mostra.
 
   TESTO INCOLLATO IL 28/09/2026 — NON USARLO COME DATI.
   Davide ha incollato un modulo Python "Piacenza AVM v2.0" e ha detto
@@ -279,9 +279,9 @@ dati troppi codici insieme. Da quella lezione:
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione LIVE al 24/09/2026, verificata sul sito: v10.5.0
-             (titolo e login: "v10.5.0"). Cache service worker:
-             immocrm-shell-v5.
+Versione LIVE al 28/09/2026, verificata sul sito: v10.5.2
+             (titolo e login: "v10.5.2"). Cache service worker:
+             immocrm-shell-v7. Pubblicata su richiesta di Davide.
 Versione NON pubblicata: v10.5.1 esiste solo in un ramo di lavoro di
              una sessione Arena del 24/09/2026 (testi più chiari in
              Impostazioni, finestra se il browser non blocca i dati).
@@ -298,9 +298,8 @@ Publishing : GitHub Pages legge dal branch MAIN, path "/".
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
              sito può essere più vecchio del resto. Non spaventarlo.
-             Questo prompt v2.12 NON è ancora su main. Include la macchina di
-             valutazione. La v10.5.2 del valutatore è solo locale, non
-             sul sito. Se in una chat
+             Questo prompt v2.12 è su main dal 28/09/2026, insieme alla
+             v10.5.2. Se in una chat
              nuova il file clonato è più vecchio del testo incollato
              dall'utente, vince il testo incollato.
 
