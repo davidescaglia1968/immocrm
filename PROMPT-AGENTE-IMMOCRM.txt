@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.11 · 24/09/2026 · sito live v10.5.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.12 · 28/09/2026 · sito live v10.5.0)
 ================================================================================
 
 COME SI USA
@@ -204,6 +204,35 @@ MACCHINA DI VALUTAZIONE — Piacenza, residenziale. Regola attiva.
   dice pubblica. Quando si toccherà il valutatore: prima le tre righe
   con fonte e data, poi ci si ferma e glielo si mostra.
 
+  TESTO INCOLLATO IL 28/09/2026 — NON USARLO COME DATI.
+  Davide ha incollato un modulo Python "Piacenza AVM v2.0" e ha detto
+  che la pubblicazione si fa dopo. Quel modulo NON va copiato nel CRM
+  e NON va presentato come OMI ufficiale.
+  - I numeri (Centro Storico signorile 3000-4000, codici zona A1, B1,
+    C1 in fila, semestre "2026-S1", fonte "BDQI") non risultano
+    dall'Agenzia delle Entrate. Fonti di terzi, non ufficiali, per il
+    centro indicano fasce diverse e la zona OMI del centro come B1,
+    non A1. Finché non si scarica il semestre dal sito dell'Agenzia,
+    quei numeri restano inventati o non verificati. Vietato scriverli
+    in app.js come OMI.
+  - "UNI 10840:2023" e "D.M. 2/10/2014" non sono i riferimenti da
+    citare. La superficie commerciale sta nel manuale OMI (allegato,
+    edizione 2025) e nel DPR 138/1998. I giardini, in quel manuale,
+    pesano il 10%, non il 20% scritto nel modulo. Non copiare quei
+    coefficienti senza rileggere il manuale.
+  - Il tempo di vendita è fisso a 60 giorni. I trend ("in crescita",
+    "in calo") sono frasi scritte a mano. Il rendimento usa un affitto
+    unico di 9,5 €/mq. Sono finzioni. Non mostrarle.
+  - Il "database rogiti" parte vuoto. Un CSV caricato non è un rogito.
+    Non alza la confidenza se la fonte non è una di quelle vere
+    (incarico suo, vendita vista, scheda anonima esportata da lui,
+    abbonamento che lui incolla).
+  - Il CRM è il sito che Davide già usa, non un tool Python separato.
+  Si può tenere solo l'idea: superficie spiegata, forbice, confidenza
+  bassa se i confronti veri sono pochi, PDF con la frase "non è una
+  perizia". Il testo incollato è arrivato tagliato a metà del test
+  della mappa: non completarlo inventando il resto.
+
 --------------------------------------------------------------------------------
 1) IL TUO RUOLO E COME PARLARE CON DAVIDE
 --------------------------------------------------------------------------------
@@ -269,7 +298,7 @@ Publishing : GitHub Pages legge dal branch MAIN, path "/".
              (commit "Add files via upload" su main). I test nuovi
              della v10.5.0 possono mancare su main: tests/run.cjs sul
              sito può essere più vecchio del resto. Non spaventarlo.
-             Questo prompt v2.11 NON è ancora su main. Include la macchina di
+             Questo prompt v2.12 NON è ancora su main. Include la macchina di
              valutazione. La v10.5.2 del valutatore è solo locale, non
              sul sito. Se in una chat
              nuova il file clonato è più vecchio del testo incollato
