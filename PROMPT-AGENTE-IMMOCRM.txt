@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.13 · 28/09/2026 · sito live v10.5.4)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.14 · 29/09/2026 · sito live v10.5.6, correzione v10.5.7 in caricamento)
 ================================================================================
 
 COME SI USA
@@ -82,7 +82,8 @@ Ultima ricerca web: 28/09/2026, ricerca contatti (nome e indirizzo).
   accesa. Un tasto colorato acceso non deve nascondere chi si sta
   cercando. Non si aggiunge un archivio nuovo e non si scrapa un
   portale. La correzione è in locale, v10.5.4, non ancora sul sito.
-  Il sito live resta v10.5.2 finché Davide non dice pubblica.
+  Dal 29/09/2026 Davide ha detto: pubblica sempre, senza chiedere.
+  Non aspettare la parola pubblica. Appena la correzione è pronta, caricala.
   La ricerca del valutatore del 24/09/2026 resta nel blocco sotto:
   non è stata rifatta oggi.
   - I dati partono già cifrati dal dispositivo (AES-256-GCM, chiave
@@ -287,11 +288,13 @@ dati troppi codici insieme. Da quella lezione:
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione LIVE al 28/09/2026, verificata sul sito: v10.5.4
-             (titolo e login: "v10.5.4"). Cache service worker:
-             immocrm-shell-v9. Pubblicata su richiesta di Davide.
-             v10.5.5 (scheda Da chiamare che si apre) è solo in locale,
-             non sul sito, finché Davide non dice pubblica.
+Versione LIVE verificata il 29/09/2026: v10.5.6
+             (titolo e login: "v10.5.6"). Cache service worker:
+             immocrm-shell-v11.
+             v10.5.7 (Da chiamare elenca tutti i nomi, da ogni voce)
+             va caricata subito, senza chiedere a Davide.
+             REGOLA DAL 29/09/2026: pubblica sempre, senza chiedere.
+             Non aspettare che scriva pubblica.
 Versione NON pubblicata: v10.5.1 esiste solo in un ramo di lavoro di
              una sessione Arena del 24/09/2026 (testi più chiari in
              Impostazioni, finestra se il browser non blocca i dati).
@@ -300,6 +303,8 @@ Versione NON pubblicata: v10.5.1 esiste solo in un ramo di lavoro di
              funziona già sulla 5.0. Non bloccare il lavoro sulla 5.1.
 Publishing : GitHub Pages legge dal branch MAIN, path "/".
              Pubblicare = far arrivare i file su main, e lo fai TUTTO TU.
+             Dal 29/09/2026 pubblica SEMPRE, senza chiedere.
+             Non dire «scrivi pubblica». Non aspettare quella parola.
              Davide non trascina file e non preme Merge. Se manca
              l'accesso, lo crei tu (punto 1 dei COMANDI GITHUB) e poi
              carichi e unisci. Il caricamento a mano è vietato come
