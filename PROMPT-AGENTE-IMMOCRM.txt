@@ -288,13 +288,11 @@ dati troppi codici insieme. Da quella lezione:
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione LIVE verificata il 30/09/2026: v10.5.10
-             (titolo e login: "v10.5.10"). Cache service worker:
-             immocrm-shell-v15.
-             Patch in preparazione: v10.5.11 — reimposta password dal
-             dispositivo già autorizzato, solo se la copia cloud cifrata
-             si decifra. Non dichiararla LIVE finché il Pages URL non mostra
-             v10.5.11 e cache immocrm-shell-v16.
+Versione LIVE verificata il 30/09/2026: v10.5.11
+             (titolo e login: "v10.5.11"). Cache service worker:
+             immocrm-shell-v16.
+             Recupero dispositivo autorizzato: Impostazioni → Sicurezza;
+             ricifra la stessa copia cloud solo dopo decrypt riuscito.
              Da chiamare elenca tutti i contatti, anche dalle altre voci.
              REGOLA DAL 29/09/2026: pubblica sempre, senza chiedere.
              Non aspettare che scriva pubblica.
@@ -443,8 +441,8 @@ a) LOGIN OBBLIGATORIO a ogni avvio, SEMPRE SOLO PASSWORD.
    Tasto "Recupera e entra" (login): solo password locale del dispositivo;
    NON è reset SMS/email e non aggiorna il cloud. Se esiste un telefono già
    aperto, non usarlo sul PC per cambiare la password condivisa.
-   v10.5.11 (in preparazione): Impostazioni → Sicurezza → "Ho dimenticato
-   la password: reimposta da questo dispositivo". Solo sessione già aperta,
+   v10.5.11 LIVE: Impostazioni → Sicurezza → "Ho dimenticato la password:
+   reimposta da questo dispositivo". Solo sessione già aperta,
    chiave master presente, cloud collegato e cifratura attiva. Chiama
    rekeyWithPassword con requireCloud; senza chiave/cipher o se decrypt
    fallisce, ritorna false e NON modifica la copia. Dopo decrypt riuscito
