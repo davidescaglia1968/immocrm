@@ -288,14 +288,13 @@ dati troppi codici insieme. Da quella lezione:
 --------------------------------------------------------------------------------
 Repository : https://github.com/davidescaglia1968/immocrm (pubblico)
 Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
-Versione LIVE verificata il 30/09/2026: v10.5.11
-             (titolo e login: "v10.5.11"). Cache service worker:
-             immocrm-shell-v16.
+Versione LIVE verificata il 30/09/2026: v10.5.12
+             (titolo e login: "v10.5.12"). Cache service worker:
+             immocrm-shell-v17.
+             Login: icona occhio mostra/nasconde il testo nel campo solo
+             sul dispositivo; non recupera né invia la password.
              Recupero dispositivo autorizzato: Impostazioni → Sicurezza;
              ricifra la stessa copia cloud solo dopo decrypt riuscito.
-             Patch in preparazione: v10.5.12 aggiunge l'occhio nel login;
-             mostra soltanto il testo digitato sul dispositivo, non recupera
-             né invia la password. Non dichiarare LIVE prima della verifica URL.
              Da chiamare elenca tutti i contatti, anche dalle altre voci.
              REGOLA DAL 29/09/2026: pubblica sempre, senza chiedere.
              Non aspettare che scriva pubblica.
@@ -437,7 +436,7 @@ a) LOGIN OBBLIGATORIO a ogni avvio, SEMPRE SOLO PASSWORD.
    Cambio password: aggiornare a.pass, passRec e archivio cloud
    (rekeyWithPassword). Manca uno dei tre → altri dispositivi bloccati.
    Recupero: nessuna password visibile dal lato agente (campo mascherato).
-   v10.5.12 proposto: occhio nel campo login mostra/nasconde solo il testo
+   v10.5.12 LIVE: occhio nel campo login mostra/nasconde solo il testo
    già inserito localmente; non rivelare/password-inviare screenshot.
    Nessun SMS/email è stato inviato. Il reset reale via email/SMS richiede
    server di invio autenticato e recapito verificato: GitHub Pages è statico,
