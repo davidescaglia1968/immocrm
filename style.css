@@ -12,6 +12,7 @@ code{font-family:var(--font-mono);font-size:11px;color:var(--gold)}
 .login-subtitle{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px}.login-version{font-size:9px;color:var(--text2);font-family:var(--font-mono)}
 .login-field{margin-bottom:11px}.login-field label{display:block;font-size:10px;color:var(--text2);margin-bottom:4px;font-weight:600;text-transform:uppercase}
 .login-field input{width:100%;background:var(--bg5);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--text);font-size:13px}
+.login-pass-wrap{position:relative}.login-pass-wrap input{padding-right:46px!important}.login-eye{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:34px;height:34px;border:0;border-radius:6px;background:transparent;color:var(--text2);font-size:18px;cursor:pointer;display:grid;place-items:center}.login-eye:hover{background:var(--bg4);color:var(--gold)}.login-eye:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
 .login-btn{width:100%;background:linear-gradient(135deg,var(--gold),var(--gold2));color:#0a0c14;border-radius:8px;padding:13px;font-size:14px;font-weight:700;margin-top:8px}
 .login-err{color:var(--red);font-size:12px;text-align:center;margin-top:8px;min-height:16px}.login-err.ok{color:var(--green);font-weight:600}.login-hint{font-size:10px;color:var(--text2);text-align:center;margin-top:14px}
 .login-links{display:flex;gap:8px;justify-content:center;margin-top:14px;flex-wrap:wrap}

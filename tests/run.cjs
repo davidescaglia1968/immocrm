@@ -418,7 +418,13 @@ async function testApp() {
   win.checkLoginRequired();
   ok(win.document.getElementById('login-code-wrap').style.display === 'none', 'v10.4: codice dispositivo nascosto (solo "Primo su questo dispositivo?")');
   ok(!!win.document.getElementById('login-recupero') && win.document.getElementById('login-recupero').style.display === 'none', 'v10.4: sezione "Password dimenticata?" presente (nascosta)');
-  ok(!!win.document.getElementById('rec-entra-btn') && typeof win.recuperaEEntra === 'function', 'v10.5.11: tasto Recupera e entra presente');
+  ok(!!win.document.getElementById('rec-entra-btn') && typeof win.recuperaEEntra === 'function', 'v10.5.12: tasto Recupera e entra presente');
+  const eye = win.document.getElementById('login-eye');
+  ok(!!eye && win.document.getElementById('login-pass').type === 'password', 'v10.5.12: occhio password presente e inizialmente nascosta');
+  win.togglePasswordVisibility('login-pass', eye);
+  ok(win.document.getElementById('login-pass').type === 'text', 'v10.5.12: occhio mostra la password solo sul dispositivo');
+  win.togglePasswordVisibility('login-pass', eye);
+  ok(win.document.getElementById('login-pass').type === 'password', 'v10.5.12: occhio torna a nascondere la password');
   // flusso recupero completo: risposta sbagliata rifiutata, risposta giusta → nuova password
   const saltR = nodeCrypto.randomBytes(16).toString('base64');
   const hashR = await win.pbkdf2('VecchiaPass9', saltR, 210000);
