@@ -654,8 +654,10 @@ function setHoldCloud(v) { holdCloudWrite = !!v; return holdCloudWrite; }
 /* v10.5.10: non adottare mai una chiave nuova se l'archivio attuale non si
    decifra. Una adozione a vuoto, al prossimo invio, cancellerebbe la copia
    cifrata. Senza chiave già presente, non si crea una sale a caso. */
-function rekeyWithPassword(newPass) {
+function rekeyWithPassword(newPass, opts) {
+  var o = opts || {};
   if (!newPass || !masterKey || !masterSalt) return Promise.resolve(false);
+  if (o.requireCloud && (!provider() || cfg.mode === 'off' || !cfg.encrypt)) return Promise.resolve(false);
   var salt = masterSalt;
   return deriveKey(newPass, b64enc(salt), KDF_ITER).then(function (nkey) {
     if (!nkey) return false;
@@ -666,11 +668,11 @@ function rekeyWithPassword(newPass) {
         return true;
       });
     }
-    if (!p || cfg.mode === 'off') return adotta();
+    if (!p || cfg.mode === 'off') return o.requireCloud ? false : adotta();
     return p.read().then(function (res) {
       var env = null;
       if (res && res.text) { try { env = JSON.parse(res.text); } catch (e) { env = null; } }
-      if (!env || !env.cipher) return adotta();
+      if (!env || !env.cipher) return o.requireCloud ? false : adotta();
       return decryptJSON(env.cipher, masterKey).then(function (data) {
         if (!data) return false;
         var base = { app: 'immocrm', v: 1, ts: now(), device: deviceId, deviceName: deviceName };

@@ -271,6 +271,12 @@ async function testPasswordChange() {
   ok(pushA && pushA.ok, 'D1: push cifrato ok', pushA && pushA.error);
   // D1 cambia password → l'archivio cloud viene ricifrato (stessa sale condivisa)
   ok(await Sync.rekeyWithPassword('PassNuova2') === true, 'D1: rekey con la nuova password ok');
+  const cfgPrimaSenzaCloud = Sync.config();
+  await Sync.setConfig({ encrypt: false });
+  ok(await Sync.rekeyWithPassword('NonScrivere9', { requireCloud: true }) === false, 'reset da dispositivo autorizzato rifiuta cloud non cifrato');
+  await Sync.setConfig({ mode: 'off', token: '', gistId: '' });
+  ok(await Sync.rekeyWithPassword('NonScrivere9', { requireCloud: true }) === false, 'reset da dispositivo autorizzato rifiuta modalità locale');
+  await Sync.setConfig(cfgPrimaSenzaCloud);
   // D2 (pulito): la vecchia password NON apre più; la nuova apre
   await Sync.lockMaster();
   ok(await Sync.rekeyWithPassword('NonScrivere9') === false, 'rekey senza chiave non tocca l\'archivio');
@@ -382,6 +388,9 @@ async function testApp() {
   ok(/Sincronizzazione multi/.test(html), 'panello Sincronizzazione presente in Impostazioni');
   ok(/PBKDF2/.test(html), 'nota sicurezza PBKDF2 presente');
   ok(!!win.document.getElementById('sec-chg-btn'), 'v10.4.1: tasto "Cambia password" presente (con stato di attività, anti-congelamento)');
+  ok(!!win.document.getElementById('sec-reset-trusted-btn') && typeof win.confermaResetDaDispositivo === 'function', 'v10.5.11: reimpostazione da dispositivo autorizzato presente');
+  win.apriResetDaDispositivo();
+  ok(!win.document.getElementById('trusted-reset-modal'), 'reimpostazione non parte senza chiave già autorizzata');
   ok(typeof win.syncCardHTML === 'function' && /Dispositivi collegati/.test(win.syncCardHTML()), 'syncCardHTML genera riga dispositivi');
 
   // v10.3: login obbligatorio ad ogni avvio (niente apertura automatica)
@@ -409,7 +418,7 @@ async function testApp() {
   win.checkLoginRequired();
   ok(win.document.getElementById('login-code-wrap').style.display === 'none', 'v10.4: codice dispositivo nascosto (solo "Primo su questo dispositivo?")');
   ok(!!win.document.getElementById('login-recupero') && win.document.getElementById('login-recupero').style.display === 'none', 'v10.4: sezione "Password dimenticata?" presente (nascosta)');
-  ok(!!win.document.getElementById('rec-entra-btn') && typeof win.recuperaEEntra === 'function', 'v10.5.10: tasto Recupera e entra presente');
+  ok(!!win.document.getElementById('rec-entra-btn') && typeof win.recuperaEEntra === 'function', 'v10.5.11: tasto Recupera e entra presente');
   // flusso recupero completo: risposta sbagliata rifiutata, risposta giusta → nuova password
   const saltR = nodeCrypto.randomBytes(16).toString('base64');
   const hashR = await win.pbkdf2('VecchiaPass9', saltR, 210000);
