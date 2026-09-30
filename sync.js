@@ -649,11 +649,16 @@ function unlockFromCloud(password) {
    recupero): mantiene la sale condivisa, ricifra l'archivio cloud con la
    nuova chiave (se il vecchio archivio è ancora leggibile) e salva la
    nuova chiave locale. Ritorna true/false. */
+var holdCloudWrite = false;
+function setHoldCloud(v) { holdCloudWrite = !!v; return holdCloudWrite; }
+/* v10.5.10: non adottare mai una chiave nuova se l'archivio attuale non si
+   decifra. Una adozione a vuoto, al prossimo invio, cancellerebbe la copia
+   cifrata. Senza chiave già presente, non si crea una sale a caso. */
 function rekeyWithPassword(newPass) {
-  if (!newPass) return Promise.resolve(false);
-  var salt = masterSalt || randBytes(16);
+  if (!newPass || !masterKey || !masterSalt) return Promise.resolve(false);
+  var salt = masterSalt;
   return deriveKey(newPass, b64enc(salt), KDF_ITER).then(function (nkey) {
-    if (!nkey) throw new SyncError(0, 'Cifratura non disponibile (serve una connessione HTTPS)');
+    if (!nkey) return false;
     var p = provider();
     function adotta() {
       return storeMaster(nkey, salt).then(function () {
@@ -661,13 +666,13 @@ function rekeyWithPassword(newPass) {
         return true;
       });
     }
-    if (!masterKey || !p || cfg.mode === 'off') return adotta();
+    if (!p || cfg.mode === 'off') return adotta();
     return p.read().then(function (res) {
       var env = null;
       if (res && res.text) { try { env = JSON.parse(res.text); } catch (e) { env = null; } }
       if (!env || !env.cipher) return adotta();
       return decryptJSON(env.cipher, masterKey).then(function (data) {
-        if (!data) return adotta(); /* vecchio archivio non leggibile: riparte dai dati locali */
+        if (!data) return false;
         var base = { app: 'immocrm', v: 1, ts: now(), device: deviceId, deviceName: deviceName };
         return encryptJSON(data, nkey).then(function (c) {
           base.cipher = { alg: 'AES-GCM', kdf: 'PBKDF2-SHA256', salt: b64enc(salt), iter: KDF_ITER, iv: c.iv, ct: c.ct };
@@ -675,7 +680,7 @@ function rekeyWithPassword(newPass) {
           return p.write(JSON.stringify(base)).then(adotta);
         });
       });
-    }).catch(adotta);
+    });
   }).catch(function (e) { console.warn('rekeyWithPassword', e); return false; });
 }
 
@@ -835,6 +840,7 @@ function mergeDevices(a, b) {
   return out;
 }
 function push() {
+  if (holdCloudWrite) return Promise.resolve({ held: true });
   var p = provider();
   if (!p) return Promise.resolve({ skipped: true });
   var db = hooks.getDb ? hooks.getDb() : null;
@@ -1357,6 +1363,7 @@ var Sync = {
   unlockFromCloud: unlockFromCloud,
   /* v10.4: ricifra l'archivio con una nuova password (cambio/recupero). */
   rekeyWithPassword: rekeyWithPassword,
+  setHoldCloud: setHoldCloud,
   lockMaster: clearMaster,
   historyList: historyList,
   historyGet: historyGet,
