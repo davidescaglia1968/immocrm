@@ -165,10 +165,11 @@ if(lp&&hashSimple(pass)===lp){await aggiornaHashPassword(pass);return true}
 // dispositivi, senza codici e senza ricominciare.
 if(window.ImmoSync&&ImmoSync.unlockFromCloud){const r=await ImmoSync.unlockFromCloud(pass);if(r==='ok')return true}
 return false}
-function loginBloccato(){const a=getAuth()||{};return !!(a.fails&&a.fails.until&&a.fails.until>Date.now())}
-function registraFallimento(){const a=getAuth()||{};const n=((a.fails&&a.fails.n)||0)+1;const minuti=Math.min(15,Math.pow(2,n-1)*0.5);a.fails={n:n,until:n>=3?Date.now()+minuti*60000:0};saveAuth(a);return n}
+function loginBloccato(){return false}
+function registraFallimento(){azzeraFallimenti();return 0}
 function azzeraFallimenti(){const a=getAuth()||{};if(a.fails){delete a.fails;saveAuth(a)}}
-function minutiBlocco(){const a=getAuth()||{};if(!loginBloccato())return 0;return Math.max(1,Math.ceil((a.fails.until-Date.now())/60000))}
+function minutiBlocco(){return 0}
+function sbloccaSubito(){azzeraFallimenti()}
 async function sbloccoCloud(pass){try{if(window.ImmoSync)await ImmoSync.unlockWithPassword(pass,{keepSalt:true});return true}catch(e){console.warn('unlock',e);return false}}
 function showLogin(){document.getElementById('login-form').style.display='block';document.getElementById('setup-form').style.display='none'}
 function showSetup(){document.getElementById('login-form').style.display='none';document.getElementById('setup-form').style.display='block'}
@@ -181,9 +182,16 @@ await ImmoSync.setConfig(patch);
 if(d.key&&d.salt)await ImmoSync.importMaster(d.key,d.salt);
 else if(d.salt&&_cloudPass)await ImmoSync.unlockWithPassword(_cloudPass,{salt:d.salt});
 }
-async function doLogin(){const inp=document.getElementById('login-pass');const p=(inp&&inp.value||'').trim();const e=document.getElementById('login-err');e.textContent='';
+async function passwordValida(p){const raw=String(p||'');const t=raw.trim();if(!t&&!raw)return false;
+async function prova(fn){try{return await fn()}catch(e){return false}}
+if(await prova(()=>verificaPasswordLocale(t)))return true;
+if(raw!==t&&await prova(()=>verificaPasswordLocale(raw)))return true;
+if(window.ImmoSync&&ImmoSync.unlockFromCloud){
+if(await prova(async()=>(await ImmoSync.unlockFromCloud(t))==='ok'))return true;
+if(raw!==t&&await prova(async()=>(await ImmoSync.unlockFromCloud(raw))==='ok'))return true}
+return false}
+async function doLogin(){sbloccaSubito();const inp=document.getElementById('login-pass');const p=(inp&&inp.value||'').trim();const e=document.getElementById('login-err');e.textContent='';
 const btn=document.getElementById('login-btn');
-if(loginBloccato()){e.textContent='⏳ Troppi tentativi errati: riprova fra '+minutiBlocco()+' min';return}
 if(!p){e.textContent='Inserisci la password';return}
 const codeEl=document.getElementById('login-code');const code=(codeEl&&codeEl.value||'').trim();const _ga=getAuth()||{};const haAuth=!!(_ga.pass&&_ga.pass.hash)||!!_ga.localPass;
 let dec=null;
@@ -209,12 +217,13 @@ else if((r==='noarchive'||r==='error')&&dec&&dec.pass&&await verificaConHash(dec
 }
 else if(dec&&dec.pass&&await verificaConHash(dec.pass,p)){ok=true;via='code'}
 }catch(err){ok=false}
+if(!ok){try{if(await passwordValida(p)){ok=true;if(!via)via='cloud'}}catch(e){}}
 if(btn){btn.disabled=false;btn.textContent='🔐 Accedi'}
-if(!ok){const n=registraFallimento();let msg;
-if(code)msg='❌ Password errata (o codice non corrispondente)';
-else if(!haAuth)msg='❌ Dispositivo non riconosciuto: al primo utilizzo usa "Primo su questo dispositivo?" in basso';
-else msg='❌ Password errata — l\'hai dimenticata? Usa "Password dimenticata?" in basso';
-e.textContent=msg+(n>=3?' — accesso sospeso per '+minutiBlocco()+' min':'');inp.value='';return}
+if(!ok){let msg;
+if(code)msg='Password non riconosciuta. Puoi riprovare subito, oppure premi Cambia password.';
+else if(!haAuth)msg='Dispositivo non riconosciuto. Premi Cambia password, oppure Primo su questo dispositivo.';
+else msg='Password non riconosciuta. Puoi riprovare subito. Per impostarne una nuova premi Cambia password.';
+e.textContent=msg;return}
 azzeraFallimenti();
 const a=getAuth()||{};a.loggedIn=true;a.nome=a.nome||(DB.settings||{}).agente||'Utente';a.ts=Date.now();
 if(via==='code'&&dec&&dec.pass){a.pass=dec.pass;delete a.localPass}
@@ -257,7 +266,7 @@ function chiudiRecupero(){const b=document.getElementById('login-recupero');if(b
    scatto di sicurezza dopo 2 minuti e tasto che torna SEMPRE cliccabile. */
 async function faRecupero(){const a=getAuth()||{};const e=document.getElementById('rec-err');e.textContent='';e.classList.remove('ok');
 if(!a.question){e.textContent='Su questo dispositivo non c\'è una domanda segreta: il recupero non è possibile.';return}
-if(loginBloccato()){e.textContent='⏳ Troppi tentativi errati: riprova fra '+minutiBlocco()+' min';return}
+sbloccaSubito();
 const anEl=document.getElementById('rec-an'),p1El=document.getElementById('rec-p1'),p2El=document.getElementById('rec-p2');
 if(!anEl||!p1El||!p2El){e.textContent='⚠️ Finestra non caricata: chiudi e riapri "Password dimenticata?".';return}
 const an=(anEl.value||'').trim().toLowerCase();
@@ -362,7 +371,21 @@ if(eraRemoto)ImmoSync.pull().then(()=>{render();renderSyncPill()})}
 function chiudiPromptCloud(ok){const m=document.getElementById('cl-modal');if(m)m.remove();_passPromptOpen=false;
 const r=window._clRes;window._clRes=null;window._clEnv=null;if(r)r(!!ok)}
 // v10.3: LOGIN OBBLIGATORIO ad ogni avvio — niente apertura automatica
-function checkLoginRequired(){leggiCodiceDaURL();loadDB();showLogin()}
+function mostraCambioLogin(){sbloccaSubito();const b=document.getElementById('login-cambio');if(b)b.style.display='block';const r=document.getElementById('login-recupero');if(r)r.style.display='none';const e=document.getElementById('lc-err');if(e)e.textContent='';const i=document.getElementById('lc-cur');if(i)setTimeout(()=>i.focus(),40)}
+function chiudiCambioLogin(){const b=document.getElementById('login-cambio');if(b)b.style.display='none'}
+async function cambiaPasswordDaLogin(){sbloccaSubito();const e=document.getElementById('lc-err');if(e)e.textContent='';
+const cur=document.getElementById('lc-cur')?document.getElementById('lc-cur').value:'';
+const p1=document.getElementById('lc-1')?document.getElementById('lc-1').value:'';
+const p2=document.getElementById('lc-2')?document.getElementById('lc-2').value:'';
+if(p1.length<6){if(e)e.textContent='Nuova password: minimo 6 caratteri.';return}
+if(p1!==p2){if(e)e.textContent='Le due password nuove non coincidono.';return}
+if(!(await passwordValida(cur))){if(e)e.textContent='La password attuale non è quella. Riprova subito: non c\'è attesa.';return}
+if(!(await aggiornaHashPassword(p1))){if(e)e.textContent='Non riesco a salvare. Riprova.';return}
+_cloudPass=p1;
+try{if(window.ImmoSync&&ImmoSync.rekeyWithPassword)await ImmoSync.rekeyWithPassword(p1)}catch(err){}
+const a=getAuth()||{};a.loggedIn=true;a.nome=a.nome||(DB.settings||{}).agente||'Utente';a.ts=Date.now();saveAuth(a);
+entraApp();showToast('Password aggiornata. Sei dentro.')}
+function checkLoginRequired(){leggiCodiceDaURL();loadDB();sbloccaSubito();showLogin()}
 /* v10.5: QR — se l'app viene aperta da un link/QR con #codice=IMMOCRM1.…
    il codice dispositivo è GIA' INSERITO: sul telefono basta la password. */
 function leggiCodiceDaURL(){
@@ -1149,7 +1172,7 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.8</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.9</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1233,7 +1256,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.8',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.9',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1418,7 +1441,7 @@ if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristi
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.8','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.9','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
