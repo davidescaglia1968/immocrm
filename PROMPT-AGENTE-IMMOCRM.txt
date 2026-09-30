@@ -291,8 +291,10 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.10
              (titolo e login: "v10.5.10"). Cache service worker:
              immocrm-shell-v15.
-             Recupera e entra: password nuova se i dati sono già sul
-             dispositivo. Non cancella la copia cifrata.
+             Patch in preparazione: v10.5.11 — reimposta password dal
+             dispositivo già autorizzato, solo se la copia cloud cifrata
+             si decifra. Non dichiararla LIVE finché il Pages URL non mostra
+             v10.5.11 e cache immocrm-shell-v16.
              Da chiamare elenca tutti i contatti, anche dalle altre voci.
              REGOLA DAL 29/09/2026: pubblica sempre, senza chiedere.
              Non aspettare che scriva pubblica.
@@ -433,18 +435,24 @@ a) LOGIN OBBLIGATORIO a ogni avvio, SEMPRE SOLO PASSWORD.
    Password anche in DB.settings.passRec (dentro i dati cifrati).
    Cambio password: aggiornare a.pass, passRec e archivio cloud
    (rekeyWithPassword). Manca uno dei tre → altri dispositivi bloccati.
-   Recupero (v10.5.10): la password vecchia NON si manda per email/SMS.
-   Non è conservata. Un codice generato nel browser non prova nulla, e un
-   SMS gratuito passerebbe da un servizio che può leggerlo: non usarlo.
-   Tasto "Recupera e entra": se questo dispositivo ha già i dati o la
-   chiave, imposta una password nuova e entra. rekeyWithPassword senza
-   chiave, o se non decifra l'archivio, ritorna false e NON adotta una
-   chiave nuova (altrimenti il prossimo invio cancella la copia cifrata).
-   In quel caso il login nuovo resta solo su questo dispositivo e l'invio
-   cloud è in pausa. La finestra automatica al login con "successo" non
-   si apre più: il browser poteva salvare una password non scelta.
-   Ricerca 30/09/2026: reset email/SMS richiede un server che genera il
-   codice; GitHub Pages non ce l'ha. Non fingere l'invio.
+   Recupero: nessuna password visibile dal lato agente (campo mascherato).
+   Nessun SMS/email è stato inviato. Il reset reale via email/SMS richiede
+   server di invio autenticato e recapito verificato: GitHub Pages è statico,
+   il repo non ha provider/credenziali; non usare contatti pubblici e non
+   inventare OTP lato browser.
+   Tasto "Recupera e entra" (login): solo password locale del dispositivo;
+   NON è reset SMS/email e non aggiorna il cloud. Se esiste un telefono già
+   aperto, non usarlo sul PC per cambiare la password condivisa.
+   v10.5.11 (in preparazione): Impostazioni → Sicurezza → "Ho dimenticato
+   la password: reimposta da questo dispositivo". Solo sessione già aperta,
+   chiave master presente, cloud collegato e cifratura attiva. Chiama
+   rekeyWithPassword con requireCloud; senza chiave/cipher o se decrypt
+   fallisce, ritorna false e NON modifica la copia. Dopo decrypt riuscito
+   ricifra lo stesso archivio con la nuova password e sincronizza passRec;
+   serve per rientrare sul PC senza la vecchia password. Non è SMS/email.
+   Non chiudere l'unica sessione autorizzata prima della verifica.
+   La finestra automatica al login con "successo" non si apre: il browser
+   poteva salvare una password non scelta.
    Anti-congelamento v10.4.1: le finestre lunghe hanno progresso e il
    tasto torna cliccabile (try/finally + 120 s). Ogni fetch a GitHub
    ha timeout (GH_TIMEOUT, default 20 s). Nuove fetch: SEMPRE timeout.

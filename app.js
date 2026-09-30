@@ -143,7 +143,7 @@ async function pbkdf2(pass,salt,iter){const su=_subtle();if(!su||!pass)return nu
 const base=await su.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveBits']);
 const bits=await su.deriveBits({name:'PBKDF2',salt:_b64d(salt),iterations:iter||PBK_ITER,hash:'SHA-256'},base,256);
 return _b64e(bits)}
-async function aggiornaHashPassword(pass,opts){const a=getAuth()||{};const salt=nuovoSale();const h=await pbkdf2(pass,salt,PBK_ITER);if(!h)return false;
+async function aggiornaHashPassword(pass,opts){const a=getAuth()||{};const o=opts||{};const salt=o.salt||nuovoSale();const h=o.hash||await pbkdf2(pass,salt,PBK_ITER);if(!h)return false;
 a.pass={salt:salt,iter:PBK_ITER,hash:h};delete a.localPass;saveAuth(a);
 // v10.4: il record vive anche nei dati sincronizzati (dentro la cifratura).
 // soloLocale: non toccare passRec, così un invio non cambia la password della copia protetta.
@@ -1196,6 +1196,8 @@ c.innerHTML=`<div class="stack">
 <div class="form-group"><label class="form-label">Nuova</label><input type="password" id="sec-n1" class="inp"></div>
 <div class="form-group"><label class="form-label">Conferma</label><input type="password" id="sec-n2" class="inp"></div></div>
 <button class="btn btn-primary btn-sm" id="sec-chg-btn" style="margin-top:10px" onclick="cambiaPassword()">🔑 Cambia password</button>
+<div style="margin-top:10px"><button class="btn btn-ghost btn-sm" id="sec-reset-trusted-btn" onclick="apriResetDaDispositivo()">🔐 Ho dimenticato la password: reimposta da questo dispositivo</button>
+<div class="text-sm text-muted" style="margin-top:5px">Solo da un dispositivo già aperto e collegato: ricifra la stessa copia cloud senza chiedere la vecchia password. Se non posso verificare l’archivio, non cambio nulla.</div></div>
 <div class="form-row-3" style="margin-top:14px">
 <div class="form-group"><label class="form-label">Blocco automatico dopo</label><select class="inp" onchange="impostaAutoLock(this.value)">${[['5','5 minuti'],['15','15 minuti'],['30','30 minuti'],['60','1 ora'],['120','2 ore'],['0','Mai']].map(o=>`<option value="${o[0]}" ${String((getAuth()||{}).lockMin===undefined?15:(getAuth()||{}).lockMin)===o[0]?'selected':''}>${o[1]}</option>`).join('')}</select></div>
 <div class="form-group"><label class="form-label">App sul telefono</label><button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="installaApp()">📲 Installa come app</button></div></div>
@@ -1213,7 +1215,7 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.10</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.11</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1276,6 +1278,41 @@ closeModal();
 if(window._deferredPrompt){await installaApp();showToast('Apri ImmoCRM dall’icona sul desktop o sul telefono: lì i dati restano bloccati.','info',7000);return}
 if(appInstallata()&&window.ImmoSync){const ok=await ImmoSync.requestPersist();window._persisted=!!ok;if(ok){showToast('🔒 Dati bloccati su questo dispositivo','success',5500);caricaProtezione();return}mostraAiutoPersistenza();return}
 await installaApp()}
+function apriResetDaDispositivo(){
+if(!window.ImmoSync||!ImmoSync.hasMasterKey()){showToast('Usa il telefono già aperto: qui non trovo la chiave autorizzata. Non ho cambiato nulla.','error');return}
+if(!cloudCollegato()){showToast('Questo dispositivo non è collegato al cloud. Non ho cambiato nulla.','error');return}
+if(!ImmoSync.config().encrypt){showToast('La cifratura cloud non è attiva qui. Non ho cambiato nulla.','error');return}
+if(document.getElementById('trusted-reset-modal'))return;
+document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="trusted-reset-modal" onclick="closeModal(event,this)"><div class="modal modal-sm" onclick="event.stopPropagation()"><h2>🔐 Reimposta password da questo dispositivo</h2>
+<div class="alert gold">Non serve la vecchia password. Userò la chiave già presente qui per ricifrare l’archivio condiviso. Se non riesco ad aprire la copia cloud, non cambio nulla.</div>
+<div class="login-field"><label>Nuova password (minimo 6 caratteri)</label><input type="password" id="trusted-reset-1" autocomplete="new-password"></div>
+<div class="login-field"><label>Conferma nuova password</label><input type="password" id="trusted-reset-2" autocomplete="new-password" onkeydown="if(event.key==='Enter')confermaResetDaDispositivo()"></div>
+<div class="login-err" id="trusted-reset-err"></div>
+<div class="modal-footer"><button class="btn btn-ghost" onclick="closeModal()">Annulla</button><button class="btn btn-primary" id="trusted-reset-save" onclick="confermaResetDaDispositivo()">Ricifra e aggiorna tutti i dispositivi</button></div></div></div>`);
+setTimeout(()=>{const i=document.getElementById('trusted-reset-1');if(i)i.focus()},40)}
+async function confermaResetDaDispositivo(){
+const e=document.getElementById('trusted-reset-err');if(e)e.textContent='';
+const p1=document.getElementById('trusted-reset-1')?document.getElementById('trusted-reset-1').value:'';
+const p2=document.getElementById('trusted-reset-2')?document.getElementById('trusted-reset-2').value:'';
+const btn=document.getElementById('trusted-reset-save');
+if(p1.length<6){if(e)e.textContent='La nuova password deve avere almeno 6 caratteri.';return}
+if(p1!==p2){if(e)e.textContent='Le due password non coincidono.';return}
+if(!window.ImmoSync||!ImmoSync.hasMasterKey()){if(e)e.textContent='Questo dispositivo non ha più la chiave autorizzata. Nessuna modifica eseguita.';return}
+if(!cloudCollegato()){if(e)e.textContent='Archivio cloud non collegato. Nessuna modifica eseguita.';return}
+if(!ImmoSync.config().encrypt){if(e)e.textContent='Cifratura cloud non attiva su questo dispositivo. Nessuna modifica eseguita.';return}
+if(btn){btn.disabled=true;btn.textContent='Verifico la copia cifrata…'}
+try{
+const salt=nuovoSale();const hash=await pbkdf2(p1,salt,PBK_ITER);
+if(!hash){if(e)e.textContent='Cifratura non disponibile. Nessuna modifica eseguita.';return}
+const ok=await ImmoSync.rekeyWithPassword(p1,{requireCloud:true});
+if(!ok){if(e)e.textContent='Non riesco a verificare la copia protetta. Non ho cambiato password né cancellato dati.';return}
+if(!(await aggiornaHashPassword(p1,{salt:salt,hash:hash}))){if(e)e.textContent='La copia è stata ricifrata, ma non riesco ad aggiornare il login su questo dispositivo. Non chiudere l’app e contatta assistenza.';return}
+_cloudPass=p1;const authReset=getAuth()||{};authReset.loggedIn=true;authReset.ts=Date.now();saveAuth(authReset);window._nientePromptCloud=false;if(ImmoSync.setHoldCloud)ImmoSync.setHoldCloud(false);
+save();const sent=await ImmoSync.flushNow();
+if(!sent||sent.ok!==true){closeModal();showToast('La password nuova è attiva sulla copia cifrata. Non ho conferma del salvataggio del profilo: non chiudere il telefono e riprova Sincronizzazione.','error',8000);return}
+closeModal();showToast('Password nuova attiva: archivio ricifrato senza cancellare i dati. Usala sul PC.','success',7000)
+}catch(err){console.warn('reset dispositivo autorizzato',err);if(e)e.textContent='Non riesco a completare la verifica. Non ho cancellato i dati.'}
+finally{if(btn){btn.disabled=false;btn.textContent='Ricifra e aggiorna tutti i dispositivi'}}}
 async function cambiaPassword(){const btn=document.getElementById('sec-chg-btn');
 if(btn){btn.disabled=true;btn.textContent='🔄 Cambio in corso…'}
 try{
@@ -1297,7 +1334,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.10',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.5.11',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1482,7 +1519,7 @@ if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristi
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.10','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.11','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
