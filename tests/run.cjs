@@ -341,9 +341,9 @@ async function testApp() {
   ok(await win.verificaPassword('segreta') === true, 'verifica PBKDF2 accetta la password giusta');
   ok(await win.verificaPassword('nope') === false, 'password errata rifiutata');
 
-  // lockout dopo 3 tentativi
+  // niente attesa di minuti dopo errori di password
   win.registraFallimento(); win.registraFallimento(); const n3 = win.registraFallimento();
-  ok(n3 >= 3 && win.loginBloccato(), 'dopo 3 errori scatta il blocco temporaneo');
+  ok(!win.loginBloccato() && win.minutiBlocco()===0, 'gli errori non bloccano più l\'accesso per minuti');
   win.azzeraFallimenti();
   ok(!win.loginBloccato(), 'azzeraFallimenti sblocca');
 

@@ -18,19 +18,20 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="preconnect" href="https://api.github.com" crossorigin>
-<title>ImmoCRM Pro v10.5.8 — Scaglia · Piacenza</title>
+<title>ImmoCRM Pro v10.5.9 — Scaglia · Piacenza</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
-<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.8 · Real Estate Operating System</div></div>
+<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.9 · Real Estate Operating System</div></div>
 <div id="login-form">
 <div class="login-field"><label>Password</label><input type="password" id="login-pass" inputmode="text" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
 <button class="login-btn" id="login-btn" onclick="doLogin()">🔐 Accedi</button>
 <div class="login-err" id="login-err"></div>
 <div class="login-links">
+<button type="button" class="login-link" onclick="mostraCambioLogin()">🔑 Cambia password</button>
 <button type="button" class="login-link" onclick="mostraRecupero()">🔑 Password dimenticata?</button>
 <button type="button" class="login-link" onclick="toggleCodeWrap()">📱 Primo su questo dispositivo?</button>
 </div>
@@ -38,6 +39,15 @@
 <div class="login-field" style="margin-top:10px"><label>Codice dispositivo <span style="opacity:.6">· dai tuoi altri dispositivi</span></label><input type="text" id="login-code" autocomplete="off" spellcheck="false" placeholder="IMMOCRM1.…"></div>
 <div class="login-hint" id="qr-code-hint" style="display:none">✅ <b>Codice ricevuto dal QR: è già inserito.</b> Scrivi solo la password e premi "🔐 Accedi".</div>
 <div class="login-hint">Apri l'app su un dispositivo che funziona → <b>Sincronizzazione</b> → "📤 Genera codice dispositivo" → incollalo qui (oppure inquadra il <b>QR</b>: fa tutto da solo). Serve solo una volta: poi basterà sempre la password.</div>
+</div>
+<div id="login-cambio" style="display:none">
+<div class="setup-banner" style="margin-top:6px">🔑 Cambia password</div>
+<div class="login-field" style="margin-top:10px"><label>Password attuale</label><input type="password" id="lc-cur" autocomplete="current-password"></div>
+<div class="login-field"><label>Nuova password (min 6 caratteri)</label><input type="password" id="lc-1" autocomplete="new-password"></div>
+<div class="login-field"><label>Conferma nuova password</label><input type="password" id="lc-2" autocomplete="new-password" onkeydown="if(event.key==='Enter')cambiaPasswordDaLogin()"></div>
+<button class="login-btn" onclick="cambiaPasswordDaLogin()">Salva e entra</button>
+<div class="login-err" id="lc-err"></div>
+<button type="button" class="login-link" onclick="chiudiCambioLogin()">← Torna al login</button>
 </div>
 <div id="login-recupero" style="display:none">
 <div class="setup-banner" style="margin-top:6px">🔑 Recupero password</div>
