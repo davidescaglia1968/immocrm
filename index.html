@@ -18,21 +18,29 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
 <link rel="preconnect" href="https://api.github.com" crossorigin>
-<title>ImmoCRM Pro v10.5.9 — Scaglia · Piacenza</title>
+<title>ImmoCRM Pro v10.5.10 — Scaglia · Piacenza</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <noscript><div style="padding:24px;font-family:sans-serif;background:#111;color:#c9a96e">ImmoCRM richiede JavaScript. Attivalo nel browser, oppure apri il file tramite GitHub Pages (non dalla pagina del codice su github.com).</div></noscript>
 <div id="login-screen">
 <div class="login-box">
-<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.9 · Real Estate Operating System</div></div>
+<div class="login-header"><div class="login-logo">🏢</div><div class="login-title">ImmoCRM Pro</div><div class="login-subtitle">Scaglia Davide — Piacenza</div><div class="login-version">v10.5.10 · Real Estate Operating System</div></div>
 <div id="login-form">
 <div class="login-field"><label>Password</label><input type="password" id="login-pass" inputmode="text" autocomplete="current-password" placeholder="Password" onkeydown="if(event.key==='Enter')doLogin()"></div>
 <button class="login-btn" id="login-btn" onclick="doLogin()">🔐 Accedi</button>
+<button type="button" class="login-btn" id="rec-entra-btn" onclick="mostraRecuperoEntra()" style="background:transparent;color:var(--gold);border:1px solid var(--gold)">Recupera e entra</button>
 <div class="login-err" id="login-err"></div>
+<div id="login-recupero-entra" style="display:none">
+<div class="login-hint" style="margin-top:10px">La password vecchia non si può mandare per SMS o email: non è conservata. Se i dati sono già su questo computer, scegline una nuova. Non cancello nulla.</div>
+<div class="login-field" style="margin-top:10px"><label>Nuova password (min 6 caratteri)</label><input type="password" id="rm-1" autocomplete="off"></div>
+<div class="login-field"><label>Conferma nuova password</label><input type="password" id="rm-2" autocomplete="off" onkeydown="if(event.key==='Enter')recuperaEEntra()"></div>
+<button class="login-btn" id="rm-btn" onclick="recuperaEEntra()">Salva e entra</button>
+<div class="login-err" id="rm-err"></div>
+</div>
 <div class="login-links">
 <button type="button" class="login-link" onclick="mostraCambioLogin()">🔑 Cambia password</button>
-<button type="button" class="login-link" onclick="mostraRecupero()">🔑 Password dimenticata?</button>
+<button type="button" class="login-link" onclick="mostraRecuperoEntra()">🔑 Password dimenticata?</button>
 <button type="button" class="login-link" onclick="toggleCodeWrap()">📱 Primo su questo dispositivo?</button>
 </div>
 <div id="login-code-wrap" style="display:none">
@@ -61,7 +69,7 @@
 <button type="button" class="login-link" onclick="chiudiRecupero()">← Torna al login</button>
 </div>
 <div class="login-hint" id="lock-note" style="display:none">🔒 Sessione bloccata per inattività: inserisci la password per riprendere esattamente da dove eri.</div>
-<div class="login-hint">💡 <b>Primo accesso:</b> password <code>successo</code>. Poi cambiala subito (te lo chiedo io al primo login).</div>
+<div class="login-hint">💡 <b>Primo accesso:</b> password <code>successo</code>. Se non entra, premi <b>Recupera e entra</b>.</div>
 <div class="login-hint" style="margin-top:8px">🔓 <b>Login:</b> sempre solo la password, su tutti i tuoi dispositivi — se la cambi da un lato, apre da tutti gli altri.</div>
 </div>
 <div id="setup-form" style="display:none">

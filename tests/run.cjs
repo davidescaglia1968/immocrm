@@ -273,6 +273,7 @@ async function testPasswordChange() {
   ok(await Sync.rekeyWithPassword('PassNuova2') === true, 'D1: rekey con la nuova password ok');
   // D2 (pulito): la vecchia password NON apre più; la nuova apre
   await Sync.lockMaster();
+  ok(await Sync.rekeyWithPassword('NonScrivere9') === false, 'rekey senza chiave non tocca l\'archivio');
   ok(await Sync.unlockFromCloud('PassVecchia1') === 'badkey', 'D2: password vecchia → badkey (non apre)');
   ok(!Sync.hasMasterKey(), 'D2: con la password vecchia nessuna chiave spuria');
   ok(await Sync.unlockFromCloud('PassNuova2') === 'ok', 'D2: NUOVA password apre l\'archivio (niente codice)');
@@ -408,6 +409,7 @@ async function testApp() {
   win.checkLoginRequired();
   ok(win.document.getElementById('login-code-wrap').style.display === 'none', 'v10.4: codice dispositivo nascosto (solo "Primo su questo dispositivo?")');
   ok(!!win.document.getElementById('login-recupero') && win.document.getElementById('login-recupero').style.display === 'none', 'v10.4: sezione "Password dimenticata?" presente (nascosta)');
+  ok(!!win.document.getElementById('rec-entra-btn') && typeof win.recuperaEEntra === 'function', 'v10.5.10: tasto Recupera e entra presente');
   // flusso recupero completo: risposta sbagliata rifiutata, risposta giusta → nuova password
   const saltR = nodeCrypto.randomBytes(16).toString('base64');
   const hashR = await win.pbkdf2('VecchiaPass9', saltR, 210000);
