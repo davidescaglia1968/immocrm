@@ -293,6 +293,9 @@ Versione LIVE verificata il 30/09/2026: v10.5.11
              immocrm-shell-v16.
              Recupero dispositivo autorizzato: Impostazioni → Sicurezza;
              ricifra la stessa copia cloud solo dopo decrypt riuscito.
+             Patch in preparazione: v10.5.12 aggiunge l'occhio nel login;
+             mostra soltanto il testo digitato sul dispositivo, non recupera
+             né invia la password. Non dichiarare LIVE prima della verifica URL.
              Da chiamare elenca tutti i contatti, anche dalle altre voci.
              REGOLA DAL 29/09/2026: pubblica sempre, senza chiedere.
              Non aspettare che scriva pubblica.
@@ -434,6 +437,8 @@ a) LOGIN OBBLIGATORIO a ogni avvio, SEMPRE SOLO PASSWORD.
    Cambio password: aggiornare a.pass, passRec e archivio cloud
    (rekeyWithPassword). Manca uno dei tre → altri dispositivi bloccati.
    Recupero: nessuna password visibile dal lato agente (campo mascherato).
+   v10.5.12 proposto: occhio nel campo login mostra/nasconde solo il testo
+   già inserito localmente; non rivelare/password-inviare screenshot.
    Nessun SMS/email è stato inviato. Il reset reale via email/SMS richiede
    server di invio autenticato e recapito verificato: GitHub Pages è statico,
    il repo non ha provider/credenziali; non usare contatti pubblici e non
