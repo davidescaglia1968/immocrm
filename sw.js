@@ -4,8 +4,8 @@
    - icone: cache-first
    Nessun dato del CRM passa dal service worker: resta in localStorage/IndexedDB/cloud cifrato.
 */
-const CACHE = 'immocrm-shell-v18'; // v10.6.0 — promemoria e sveglie
-const CORE = ['./', './index.html', './style.css', './app.js', './sync.js', './promemoria.js', './manifest.webmanifest',
+const CACHE = 'immocrm-shell-v19'; // v10.6.1 — recupero dati
+const CORE = ['./', './index.html', './style.css', './app.js', './sync.js', './promemoria.js', './recupero-dati.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {

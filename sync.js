@@ -851,6 +851,16 @@ function push() {
     set({ state: 'error', lastError: 'Cifratura attiva ma chiave non disponibile: reinserisci la password.' });
     return Promise.resolve({ locked: true });
   }
+  /* v10.6.1 — RETE DI SICUREZZA. Se questo dispositivo risulta vuoto ma
+     l'archivio cloud conteneva dati, NON lo si sovrascrive: si ferma e lo
+     dice. Serve a evitare che un dispositivo con la memoria svuotata
+     cancelli l'archivio buono. Uno svuotamento VOLUTO (Reset totale) mette
+     db._svuotaOk e passa. */
+  if (isEmptyDB(db) && !db._svuotaOk && state.bytes && state.bytes > 2000) {
+    set({ state: 'error', pending: false, lastError: 'Archivio cloud protetto: questo dispositivo risulta vuoto.' });
+    if (hooks.onBlocked) { try { hooks.onBlocked(); } catch (e) { } }
+    return Promise.resolve({ blocked: true });
+  }
   set({ state: 'syncing', pending: false });
   var payload;
   db._devices = db._devices || {};

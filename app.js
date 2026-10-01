@@ -332,7 +332,10 @@ window.addEventListener('online',()=>{renderSyncPill();if(window.ImmoSync)ImmoSy
 window.addEventListener('offline',()=>renderSyncPill());
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(window.ImmoSync)ImmoSync.flushNow()}else if(appAttiva()&&window.ImmoSync)ImmoSync.pull()});
 window.addEventListener('pagehide',()=>{try{if(window.ImmoSync)ImmoSync.flushNow()}catch(e){}});
-if(window.ImmoSync)ImmoSync.start({getDb:()=>DB,applyDb:applicaDbRemoto,onStatus:renderSyncPill,unlock:chiediPasswordCloud})}
+if(window.ImmoSync)ImmoSync.start({getDb:()=>DB,applyDb:applicaDbRemoto,onStatus:renderSyncPill,unlock:chiediPasswordCloud,
+/* v10.6.1: se il browser impedisce di scrivere sul cloud perché in locale i dati risultano vuoti,
+   l'utente deve saperlo subito, con un tasto per recuperare. */
+onBlocked:()=>{try{showToast('🛡️ Ho protetto l\'archivio cloud: qui i dati risultano vuoti, quindi non l\'ho sovrascritto','error',9000);setTimeout(()=>{try{apriRecuperoDati()}catch(e){}},900)}catch(e){}}})}
 function renderSyncPill(st){const el=document.getElementById('sync-pill');if(!el)return;
 const s=st||(window.ImmoSync?ImmoSync.status():{state:'off',mode:'off'});
 const off=(typeof navigator!=='undefined'&&navigator.onLine===false);
@@ -1219,6 +1222,7 @@ ${syncCardHTML()}
 <div id="protect-status" class="text-sm text-muted">Verifico lo stato delle copie…</div>
 <div class="row" style="margin-top:10px;gap:8px;flex-wrap:wrap">
 <button class="btn btn-primary btn-sm" id="protect-check-btn" onclick="verificaProtezione()">🧪 Verifica copie</button>
+<button class="btn btn-danger btn-sm" id="recupero-btn" onclick="apriRecuperoDati()">🆘 Recupera i miei contatti</button>
 <button class="btn btn-gold btn-sm" onclick="creaCopiaEmergenza()">💾 Doppia copia ora</button>
 <button class="btn btn-gold btn-sm" onclick="attivaPersistenza()">🔒 Blocca i dati su questo dispositivo</button></div>
 <div class="alert gold" style="margin-bottom:0">🧹 Se pulisci il computer (file temporanei, programmi di pulizia, ripristino del browser) i dati restano: tengo <b>due copie di riserva</b> su questo dispositivo, più lo storico dei salvataggi. Se il telefono è collegato, c'è anche una copia al sicuro nel cloud. Un dubbio? Premi <b>🧪 Verifica copie</b>.</div></div>
@@ -1227,7 +1231,7 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.0</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1338,7 +1342,8 @@ if(window.ImmoSync)ImmoSync.syncNow('password');
 showToast('🔑 Password aggiornata e dati ricifrati')
 }finally{if(btn){btn.disabled=false;btn.textContent='🔑 Cambia password'}}}
 function impostaAutoLock(v){const a=getAuth()||{};a.lockMin=parseInt(v,10)||0;saveAuth(a);armaLock();showToast('Blocco automatico: '+(a.lockMin?a.lockMin+' minuti':'disattivato'))}
-function resetTotale(){if(!confirm('Eliminare TUTTI i dati da questo dispositivo? Se la sincronizzazione cloud è attiva i dati torneranno al prossimo sync.'))return;
+function resetTotale(){try{DB._svuotaOk=Date.now();if(window.ImmoSync&&ImmoSync.flushNow)ImmoSync.flushNow()}catch(e){}
+if(!confirm('Eliminare TUTTI i dati da questo dispositivo? Se la sincronizzazione cloud è attiva i dati torneranno al prossimo sync.'))return;
 if(!confirm('Conferma definitiva: cancello archivio locale, copie di emergenza, storico e sessione.'))return;
 try{localStorage.removeItem(KEY);localStorage.removeItem('immocrm_snap_v1');localStorage.removeItem(AUTH_KEY);localStorage.removeItem('immocrm_ls_main');localStorage.removeItem('immocrm_ls_hist');localStorage.removeItem('immocrm_ls_key');localStorage.removeItem('immocrm_allarme_giorno');localStorage.removeItem('immocrm_persist_notice');if(window.ImmoSync&&ImmoSync.emergencyClear)ImmoSync.emergencyClear()}catch(e){}
 if(window.indexedDB&&indexedDB.databases){indexedDB.databases().then(l=>{(l||[]).forEach(d=>{if(d.name==='immocrm')indexedDB.deleteDatabase('immocrm')})}).catch(()=>{})}
@@ -1346,7 +1351,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.6.0',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.1',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1531,7 +1536,7 @@ if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristi
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.0','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.1','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
@@ -1939,6 +1944,8 @@ function ripristinaCopiaPreAggiornamento(){
       }
       copiaPrimaDiAggiornare();
       if(typeof buildNav==='function')buildNav();
+      /* v10.6.1: se i contatti non si vedono ma una copia li ha, lo dico subito */
+      setTimeout(function(){try{sicurezzaContatti()}catch(e){}},1500);
     }catch(e){console.warn('novità v10.6',e)}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();

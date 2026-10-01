@@ -310,12 +310,22 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.12
              (titolo e login: "v10.5.12"). Cache service worker:
              immocrm-shell-v17.
+v10.6.1 (01/10/2026) — stessa sessione:
+             recupero dati: file NUOVO recupero-dati.js + tasto
+             "🆘 Recupera i miei contatti" in Impostazioni → Protezione dati.
+             Legge TUTTE le copie (principale, specchio, emergenza A/B,
+             pre-aggiornamento, IndexedDB, storico) e le rimette dentro con
+             un clic, con avviso automatico in alto se i contatti non si
+             vedono ma una copia li ha. sync.js: un dispositivo vuoto NON
+             può più sovrascrivere l'archivio cloud (bloccato, salvo Reset
+             totale voluto con db._svuotaOk). Test: 189/189.
+
 v10.6.0 (01/10/2026) — DA QUESTA SESSIONE:
              sveglie per i richiami (file NUOVO promemoria.js), sezione di menu
              "⏰ Promemoria", tasti veri al posto di logRapido/deleteEvento,
              tasto 👤 che apre la scheda contatto dalle altre schermate,
              valutatore: riga della fascia onesta e affidabilità legata ai
-             venduti veri. Cache service worker: immocrm-shell-v18.
+             venduti veri. Cache service worker: immocrm-shell-v19 (v10.6.1).
              Guida per Davide: GUIDA-SVEGLIE.txt (in italiano semplice).
              Pianificatore facoltativo: .github/workflows/sveglie.yml.
              Login: icona occhio mostra/nasconde il testo nel campo solo
@@ -390,7 +400,7 @@ COMANDI GITHUB — quando pubblichi, fai TUTTO tu. Niente ZIP, niente
      deve premere Ctrl+F5. Non chiedergli di unire o di caricare file.
 
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
-  - index.html, style.css, app.js, sync.js, promemoria.js (NUOVO v10.6), sw.js
+  - index.html, style.css, app.js, sync.js, promemoria.js (v10.6), recupero-dati.js (v10.6.1), sw.js
   - manifest.webmanifest, icons/
   - LEGGIMI-CARICA-SU-GITHUB.txt
   - questo file

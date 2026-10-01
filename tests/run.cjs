@@ -303,6 +303,7 @@ function makeWindow(url) {
     .replace(/<link rel="[^>]*icons[^>]*>/g, '')
     .replace(/<script src="sync\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'sync.js'), 'utf8') + '<\/script>')
     .replace(/<script src="promemoria\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'promemoria.js'), 'utf8') + '<\/script>')
+    .replace(/<script src="recupero-dati\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'recupero-dati.js'), 'utf8') + '<\/script>')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + '<\/script>');
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!/Not implemented/.test((e && e.message) || '')) console.error('jsdom:', e && e.message); });
@@ -856,6 +857,73 @@ async function testAppV106() {
   win.close();
 }
 
+
+/* ---------------------------------------------------------------- */
+/* 16) v10.6.1 — un dispositivo vuoto non deve cancellare il cloud   */
+/* ---------------------------------------------------------------- */
+async function testProtezioneVuoto() {
+  section('16. v10.6.1: un dispositivo vuoto NON cancella l\'archivio cloud');
+  const { server, port } = await fakeGitHub();
+  const base = 'http://127.0.0.1:' + port;
+  await Sync.setConfig({ mode: 'gist', token: 'faketoken', gistId: '', apiBase: base, encrypt: false });
+  const contatti = [];
+  for (let i = 0; i < 40; i++) contatti.push({ id: i, nome: 'Cliente ' + i, telefono: '333000' + i, note: 'nota di lavoro '.repeat(20), updatedAt: 1 });
+  let db = { clienti: contatti, immobili: [], _ts: 5, _fieldTs: {} };
+  Sync.start({ getDb: () => db, applyDb: () => { }, onStatus: () => { } });
+  Sync.stop();
+  const p1 = await Sync.push().catch(e => ({ error: e.message }));
+  ok(p1 && p1.ok, 'primo invio: l\'archivio cloud contiene i contatti');
+  /* il dispositivo "si svuota" (memoria del browser pulita) */
+  db = { clienti: [], immobili: [], _ts: 9, _fieldTs: {} };
+  const bloccato = await Sync.push().catch(e => ({ error: e.message }));
+  ok(bloccato && bloccato.blocked === true, 'con i dati vuoti il CRM NON sovrascrive il cloud');
+  const dopo = await Sync.pull().catch(e => ({ error: e.message }));
+  ok(dopo && dopo.counts && dopo.counts.clienti === 40, 'l\'archivio cloud è ancora intero (40 contatti)');
+  /* svuotamento VOLUTO: Reset totale deve poter passare */
+  db = { clienti: [], immobili: [], _ts: 10, _svuotaOk: Date.now(), _fieldTs: {} };
+  const forzato = await Sync.push().catch(e => ({ error: e.message }));
+  ok(forzato && forzato.ok, 'con lo svuotamento voluto (Reset totale) l\'invio passa');
+  server.close();
+}
+
+/* ---------------------------------------------------------------- */
+/* 17) v10.6.1 — recupero dei dati da tutte le copie                 */
+/* ---------------------------------------------------------------- */
+async function testRecupero() {
+  section('17. v10.6.1: recupero dei contatti dalle copie di sicurezza');
+  const vivi = { clienti: [{ id: 1, nome: 'Mario', cognome: 'Rossi', telefono: '3331112222', updatedAt: 1 }, { id: 2, nome: 'Anna', cognome: 'Bianchi', telefono: '3339998887', updatedAt: 2 }], immobili: [{ id: 9, titolo: 'Casa', updatedAt: 3 }] };
+  const win = makeWindow();
+  /* la copia principale risulta vuota, ma le copie di riserva hanno i dati */
+  win.localStorage.setItem('immocrm_pro_v10', JSON.stringify({ clienti: [], immobili: [], settings: { agente: 'SD' } }));
+  win.localStorage.setItem('immocrm_emg_a', JSON.stringify({ ts: Date.now() - 60000, db: vivi }));
+  win.localStorage.setItem('immocrm_backup_pre_106', JSON.stringify(vivi));
+  await waitUntil(() => win.DB && typeof win.render === 'function');
+  win.confirm = () => true;                     /* jsdom non ha le finestre di conferma */
+  const copie = await win.elencoCopie();
+  const conContatti = copie.filter(c => c.conta.clienti > 0);
+  ok(conContatti.length >= 2, 'trova almeno 2 copie con i contatti (' + conContatti.length + ')');
+  ok(conContatti[0].conta.clienti === 2, 'la copia più ricca ha 2 contatti');
+  const conta = copie.find(c => c.chiave === 'corrente').conta;
+  ok(conta.clienti === 0, 'i dati in uso adesso risultano vuoti (è il caso da recuperare)');
+  await win.sicurezzaContatti();
+  ok(!!win.document.getElementById('avviso-recupero'), 'compare l\'avviso in alto con il tasto di recupero');
+  const buona = conContatti[0];
+  await win.recuperaDa(buona.chiave);
+  ok(win.DB.clienti.length === 2, 'i contatti sono tornati nel CRM');
+  ok(win.DB.immobili.length === 1, 'anche gli immobili sono tornati');
+  ok(win.DB.clienti[0].nome === 'Mario' && win.DB.clienti[0].telefono === '3331112222', 'i dati sono quelli giusti, non vuoti');
+  ok(!!win.localStorage.getItem('immocrm_backup_prima_del_recupero'), 'quello che c\'era prima resta in una copia: si può tornare indietro');
+  const dopo = await win.elencoCopie();
+  ok(dopo.find(c => c.chiave === 'corrente').conta.clienti === 2, 'ora anche i dati in uso hanno i contatti');
+  /* referto per assistenza: solo numeri, nessun nome */
+  let salvato = null;
+  win.scarica = (nome, testo) => { salvato = { nome, testo }; };
+  await win.refertoCopie();
+  ok(!!salvato && /referto-copie-immocrm\.json/.test(salvato.nome), 'il referto per assistenza si genera');
+  ok(!/Rossi|3331112222/.test(salvato.testo), 'il referto NON contiene nomi né telefoni: solo numeri');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -875,6 +943,8 @@ async function testAppV106() {
   try { await testCerca(); } catch (e) { failed++; failures.push('cerca: ' + e.message); console.log('  ❌ cerca exception', e.message); }
   try { await testPromemoria(); } catch (e) { failed++; failures.push('promemoria: ' + e.message); console.log('  ❌ promemoria exception', e.message); }
   try { await testAppV106(); } catch (e) { failed++; failures.push('app106: ' + e.message); console.log('  ❌ app106 exception', e.message); }
+  try { await testProtezioneVuoto(); } catch (e) { failed++; failures.push('protezione-vuoto: ' + e.message); console.log('  ❌ protezione-vuoto exception', e.message); }
+  try { await testRecupero(); } catch (e) { failed++; failures.push('recupero: ' + e.message); console.log('  ❌ recupero exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }
