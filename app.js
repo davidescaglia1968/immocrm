@@ -1231,7 +1231,8 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.1</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div>
+<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.2</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1351,7 +1352,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.6.1',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.2',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1535,8 +1536,48 @@ if(p&&localStorage.getItem('immocrm_persist_notice')!=='1'){localStorage.setItem
 if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristinati dalla copia di emergenza: la copia principale era stata cancellata (pulizia del PC?)','info',8000),900);
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
-if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.1','font-size:14px;font-weight:bold;color:#c9a96e');
+/* v10.6.2 — AGGIORNAMENTI SENZA COMBATTERE CON IL BROWSER.
+   Il browser tiene in memoria la versione vecchia: qui l'app se ne accorge da
+   sola e mostra il tasto "Aggiorna ora". I dati NON c'entrano: restano dove
+   sono (memoria del dispositivo + archivio cifrato). Cambia solo il programma. */
+let _swReg=null;
+function aggiornaAdesso(){
+  try{
+    if(_swReg&&_swReg.waiting){_swReg.waiting.postMessage({type:'SKIP_WAITING'});return}
+    showToast('🔄 Controllo la versione…','info',2000);
+    if(_swReg){_swReg.update().then(()=>setTimeout(()=>{if(!_swReg.waiting)showToast('✅ Sei già all\'ultima versione')},1500)).catch(()=>{})}
+    else location.reload();
+  }catch(e){location.reload()}
+}
+function mostraBannerAggiorna(){
+  if(document.getElementById('banner-aggiorna'))return;
+  const b=document.createElement('div');
+  b.id='banner-aggiorna';
+  b.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:3200;background:#1e3a5f;color:#fff;padding:12px 16px;display:flex;gap:12px;align-items:center;justify-content:center;flex-wrap:wrap;font-size:13px;box-shadow:0 -4px 14px rgba(0,0,0,.4)';
+  b.innerHTML='<b>✨ C\'è una versione nuova di ImmoCRM pronta.</b><span style="opacity:.85">I tuoi dati non si toccano: cambia solo il programma.</span>'+
+    '<button class="btn btn-gold btn-sm" onclick="aggiornaAdesso()">🔄 Aggiorna ora</button>'+
+    '<button class="btn btn-ghost btn-sm" onclick="this.parentNode.remove()">Più tardi</button>';
+  document.body.appendChild(b);
+}
+function avviaControlloAggiornamenti(){
+  if(!('serviceWorker' in navigator)||location.protocol==='file:')return;
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      _swReg=reg;
+      const cerca=()=>{try{reg.update()}catch(e){}};
+      setInterval(cerca,15*60*1000);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')cerca()});
+      reg.addEventListener('updatefound',()=>{
+        const nw=reg.installing;if(!nw)return;
+        nw.addEventListener('statechange',()=>{if(nw.state==='installed'&&navigator.serviceWorker.controller)mostraBannerAggiorna()});
+      });
+      if(reg.waiting&&navigator.serviceWorker.controller)mostraBannerAggiorna();
+    }).catch(e=>console.warn('sw',e));
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{try{location.reload()}catch(e){}});
+  });
+}
+avviaControlloAggiornamenti();
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.2','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
