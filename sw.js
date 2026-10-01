@@ -4,7 +4,7 @@
    - icone: cache-first
    Nessun dato del CRM passa dal service worker: resta in localStorage/IndexedDB/cloud cifrato.
 */
-const CACHE = 'immocrm-shell-v19'; // v10.6.1 — recupero dati
+const CACHE = 'immocrm-shell-v20'; // v10.6.2 — aggiornamento con un tasto
 const CORE = ['./', './index.html', './style.css', './app.js', './sync.js', './promemoria.js', './recupero-dati.js', './manifest.webmanifest',
   './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 
@@ -22,6 +22,11 @@ self.addEventListener('activate', (e) => {
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
+});
+
+/* v10.6.2: quando l'app dice "Aggiorna ora", la nuova versione prende subito il posto. */
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (e) => {
