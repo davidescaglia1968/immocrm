@@ -305,6 +305,7 @@ function makeWindow(url) {
     .replace(/<script src="promemoria\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'promemoria.js'), 'utf8') + '<\/script>')
     .replace(/<script src="recupero-dati\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'recupero-dati.js'), 'utf8') + '<\/script>')
     .replace(/<script src="automazioni\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'automazioni.js'), 'utf8') + '<\/script>')
+    .replace(/<script src="fonti\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'fonti.js'), 'utf8') + '<\/script>')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + '<\/script>');
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!/Not implemented/.test((e && e.message) || '')) console.error('jsdom:', e && e.message); });
@@ -1037,6 +1038,130 @@ async function testAutomazioniApp() {
   win.close();
 }
 
+
+/* ---------------------------------------------------------------- */
+/* 20) v10.6.4 — freschezza dei dati di mercato (fonti.js)           */
+/* ---------------------------------------------------------------- */
+async function testFonti() {
+  section('20. v10.6.4: quando si aggiornano i dati di mercato');
+  const F = require(path.join(ROOT, 'fonti.js'));
+
+  /* calendario ufficiale: 15 marzo e 15 ottobre */
+  const c1 = F.calendario('2026-03-14');
+  ok(c1.ultimo === '2025-S1' && c1.prossimaData === '2026-03-15' && c1.giorniAlProssimo === 1, 'calendario: il 14/03 il nuovo semestre esce domani (15/03)');
+  const c2 = F.calendario('2026-03-15');
+  ok(c2.ultimo === '2025-S2' && c2.prossimaData === '2026-10-15', 'calendario: dal 15/03 è disponibile il 2° semestre 2025');
+  const c3 = F.calendario('2026-10-01');
+  ok(c3.ultimo === '2025-S2' && c3.giorniAlProssimo === 14, 'calendario: il 01/10 mancano 14 giorni al 1° semestre 2026');
+  const c4 = F.calendario('2026-10-15');
+  ok(c4.ultimo === '2026-S1' && c4.prossimaData === '2027-03-15', 'calendario: dal 15/10 c\'è il 1° semestre 2026');
+  ok(c4.testo.indexOf('15/10/2026') >= 0, 'calendario: la frase per l\'utente porta le date vere');
+  ok(F.giorni(F.dataPubblicazione('2025-S2'), '2026-03-15') === 0, 'la data di uscita del 2° semestre è il 15 marzo');
+
+  /* lettura degli atti incollati */
+  const testo = 'Mese/Anno\tTipologia\tCorrispettivo\tCategoria\tConsistenza\n' +
+    '03/2025\tResidenziale\t185.000,00\tA/2\t5,5 vani\n' +
+    'marzo 2025 ; Residenziale ; 178500 ; A/2 ; 118 mq ; C23 Centro storico\n' +
+    '2025-06; 210000; 95 mq\n' +
+    'aprile 2025; 190000; 3 vani; B1\n' +
+    'riga senza senso\n';
+  const r = F.parseAtti(testo, { zona: 'Centro storico' });
+  ok(r.atti.length === 4, 'lettura: riconosce 4 atti su 5 righe di dati (' + r.atti.length + ')');
+  ok(r.scartate.length === 1, 'lettura: la riga inutile finisce negli scarti, non nei dati');
+  const a1 = r.atti.find(a => a.prezzo === 185000);
+  ok(!!a1 && a1.vani === 5.5 && a1.mq === 0, 'lettura: "5,5 vani" → vani 5,5, mq 0');
+  const a2 = r.atti.find(a => a.prezzo === 178500);
+  ok(!!a2 && a2.mq === 118 && a2.categoria === 'A/2' && a2.zonaCodice === 'C23', 'lettura: mq, categoria e zona OMI dal testo');
+  ok(!!a2 && a2.usabile === true, 'lettura: con i mq l\'atto è usabile per la media');
+  const a3 = r.atti.find(a => a.prezzo === 210000);
+  ok(!!a3 && a3.mese === 6 && a3.mq === 95, 'lettura: data ISO 2025-06 e mq');
+  ok(r.avvisi.some(x => /vani/.test(x)), 'lettura: avvisa che gli atti con soli vani non entrano nel €/mq');
+  ok(r.avvisi.some(x => /DICHIARATI/.test(x)), 'lettura: avvisa che sono prezzi dichiarati, non perizie');
+
+  /* salvataggio e doppioni */
+  const db = { vendite: [], mercato: {} };
+  const s1 = F.salvaAtti(db, r.atti, { zona: 'Centro storico' });
+  ok(s1.aggiunti === 4 && db.vendite.length === 4, 'salvataggio: 4 atti dentro');
+  const s2 = F.salvaAtti(db, r.atti, { zona: 'Centro storico' });
+  ok(s2.aggiunti === 0 && s2.duplicati === 4 && db.vendite.length === 4, 'salvataggio: gli stessi atti non si duplicano');
+  ok(!!db.mercato.ultimoAttiReali, 'salvataggio: segna la data dell\'ultimo caricamento');
+
+  /* chi entra nella media */
+  const usabili = F.attiReali(db, { zona: 'centro storico', mesi: 36 });
+  ok(usabili.length === 2, 'media €/mq: solo gli atti con i mq (' + usabili.length + ')');
+  ok(F.attiSenzaMq(db, {}).length === 2, 'gli atti con soli vani restano visibili ma fuori dalla media');
+  ok(F.attiReali(db, { zona: 'Borgonovo' }).length === 0, 'media €/mq: non prende atti di altre zone');
+
+  /* freschezza */
+  const fr = F.freschezza(db, '2026-10-01');
+  const omi = fr.fonti.find(f => f.chiave === 'omi'), atti = fr.fonti.find(f => f.chiave === 'atti');
+  ok(omi.stato === 'mai' && /appunto interno/.test(omi.nota), 'freschezza: senza semestre caricato lo dice chiaro');
+  ok(atti.stato === 'ok' && atti.giorni === 0, 'freschezza: atti appena caricati → in regola');
+  db.mercato.ultimoAttiReali = '2026-08-01';
+  const fr2 = F.freschezza(db, '2026-10-01');
+  ok(fr2.fonti.find(f => f.chiave === 'atti').stato === 'da-aggiornare', 'freschezza: dopo 35 giorni gli atti vanno rinfrescati');
+  ok(fr2.daFare.length >= 1, 'freschezza: sa dire cosa c\'è da fare');
+  const db3 = { vendite: [], mercato: { semestreOmi: '2026-S1' }, zoneOMI: [] };
+  const fr3 = F.freschezza(db3, '2026-10-20');
+  ok(fr3.fonti.find(f => f.chiave === 'omi').stato === 'ok', 'freschezza: semestre allineato → in regola');
+  const db4 = { vendite: [], mercato: { semestreOmi: '2025-S2' }, zoneOMI: [] };
+  ok(F.freschezza(db4, '2026-10-20').fonti.find(f => f.chiave === 'omi').stato === 'da-aggiornare', 'freschezza: semestre vecchio → da aggiornare');
+}
+
+/* ---------------------------------------------------------------- */
+/* 21) v10.6.4 — atti reali dentro l'app (jsdom)                     */
+/* ---------------------------------------------------------------- */
+async function testFontiApp() {
+  section('21. v10.6.4: atti reali e calendario dentro l\'app (jsdom)');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.render === 'function' && win.Fonti);
+  const p = win.document.getElementById('login-pass'); if (p) p.value = 'successo';
+  try { await win.doLogin(); } catch (e) { }
+  await waitUntil(() => win.document.getElementById('app-shell').style.display !== 'none').catch(() => { });
+
+  /* la scheda in Compravendite OMI */
+  win.eval("activeSection='mercato';render()");
+  let html = win.document.getElementById('content').innerHTML;
+  ok(/Dati di mercato — quando si aggiornano/.test(html), 'Mercato: compare la scheda della freschezza dei dati');
+  ok(/15 ottobre|15 marzo/.test(html), 'Mercato: cita il calendario ufficiale (15 marzo / 15 ottobre)');
+  ok(/Incolla gli atti reali/.test(html), 'Mercato: c\'è la casella per incollare gli atti reali');
+  ok(/SPID/.test(html), 'Mercato: dice dove prendere gli atti (SPID/CIE)');
+
+  /* import end-to-end */
+  win.document.getElementById('dm-zona').value = 'Centro Storico';
+  win.document.getElementById('dm-testo').value =
+    '05/2026 ; Residenziale ; 180.000 ; 100 mq ; A/2 ; C23 Centro storico\n' +
+    '06/2026 ; Residenziale ; 168.000 ; 96 mq ; A/2 ; C23 Centro storico\n' +
+    '07/2026 ; Residenziale ; 240.000 ; 120 mq ; A/3 ; C23 Centro storico\n' +
+    '08/2026 ; Residenziale ; 96.000 ; 3 vani ; B1\n';
+  win.eval("leggiAtti()");
+  let prev = win.document.getElementById('dm-preview').innerHTML;
+  ok(/Ho letto 4 atti/.test(prev), 'import: l\'anteprima dice quanti atti ha letto');
+  ok(/172\.500|172500/.test(prev.replace(/\./g, '')) || /€/.test(prev), 'import: l\'anteprima mostra i prezzi');
+  const btn = win.document.getElementById('dm-salva');
+  ok(btn && btn.disabled === false, 'import: il tasto di conferma si attiva solo dopo il controllo');
+  win.eval("confermaAtti()");
+  const atti = win.DB.vendite.filter(v => String(v.fonte || '').indexOf('valori dichiarati') >= 0);
+  ok(atti.length === 4, 'import: i 4 atti sono dentro il CRM (' + atti.length + ')');
+  ok(atti.every(v => v.prezzoVendita > 0 && v.dataVendita), 'import: ogni atto ha prezzo e mese/anno');
+
+  /* il valutatore li usa nella riga "Venduto" */
+  const imm = { id: 901, titolo: 'Trilocale prova', tipo: 'trilocale', zona: 'Centro Storico', citta: 'Piacenza', prezzo: 195000, superficie: 100, locali: 3, stato: 'disponibile', prezzoIniziale: 210000, dataInserimento: '2026-06-01' };
+  const res = win.eval("(function(){if(!DB.zoneOMI)DB.zoneOMI=[];var i=" + JSON.stringify(imm) + ";V={step:1,dati:{zona:'Centro Storico',tipo:'appartamento',superficie:100,stato:'buono',piano:1,classe:'C'},risultato:null};V.dati.prezzoRichiesto=195000;return 1})()");
+  win.eval("vtCalcola()");
+  const r = win.eval("V.risultato");
+  ok(r.nAtti === 3, 'valutatore: conta 3 atti reali in zona con i mq (' + r.nAtti + ')');
+  ok(r.attiSenzaMq === 1, 'valutatore: l\'atto con soli vani è contato a parte');
+  ok(r.nVenduti === 3, 'valutatore: gli atti reali entrano nei venduti veri');
+  ok(r.conf >= 60, 'valutatore: con 3 compravendite reali l\'affidabilità sale (' + r.conf + '%)');
+  ok(r.ampia === 0.07, 'valutatore: con 3+ venduti veri la forbice si stringe al 7%');
+  const tre = win.eval("(function(){var d=V.dati,r=V.risultato;return htmlTreRighe(d,r)})()");
+  ok(/3 compravendite reali in zona \(3 atti Agenzia \+ 0 tue\)/.test(tre), 'stima: la riga Venduto dice che sono atti dell\'Agenzia');
+  ok(/atti con soli vani/.test(tre), 'stima: dice che 1 atto è fuori dalla media per mancanza dei mq');
+  ok(/Calendario ufficiale OMI/.test(tre), 'stima: la riga 1 porta il calendario ufficiale con le date');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -1060,6 +1185,8 @@ async function testAutomazioniApp() {
   try { await testRecupero(); } catch (e) { failed++; failures.push('recupero: ' + e.message); console.log('  ❌ recupero exception', e.message); }
   try { await testAutomazioni(); } catch (e) { failed++; failures.push('automazioni: ' + e.message); console.log('  ❌ automazioni exception', e.message); }
   try { await testAutomazioniApp(); } catch (e) { failed++; failures.push('automazioni-app: ' + e.message); console.log('  ❌ automazioni-app exception', e.message); }
+  try { await testFonti(); } catch (e) { failed++; failures.push('fonti: ' + e.message); console.log('  ❌ fonti exception', e.message); }
+  try { await testFontiApp(); } catch (e) { failed++; failures.push('fonti-app: ' + e.message); console.log('  ❌ fonti-app exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }

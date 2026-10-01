@@ -1052,11 +1052,17 @@ const base=Math.round(omi.mid*sup*(1+coef/100));
 /* Affidabilità: sale SOLO con i venduti veri in zona (quanti e quanto recenti),
    non contando i coefficienti. Regola del valutatore. Con zero venduti veri
    resta bassa e la forbice si allarga, invece di far finta di essere precisi. */
-const vendutiZona=(DB.vendite||[]).filter(v=>v&&v.prezzoVendita>0&&v.prezzoPubblicato>0&&(!d.zona||!v.zona||stessaZona(v.zona,d.zona))&&(!v.dataVendita||v.dataVendita>=limite36()));
+const venditeMie=(DB.vendite||[]).filter(v=>v&&v.prezzoVendita>0&&v.prezzoPubblicato>0&&(!d.zona||!v.zona||stessaZona(v.zona,d.zona))&&(!v.dataVendita||v.dataVendita>=limite36()));
+/* Atti reali (corrispettivi dichiarati) incollati dal servizio dell'Agenzia:
+   sono venduti veri. Entrano nel conto della riga 3 solo se hanno i mq. */
+const attiZona=(window.Fonti?Fonti.attiReali(DB,{zona:d.zona,mesi:36}):[]).map(a=>Object.assign({},a,{_atto:true}));
+const attiSenzaMq=(window.Fonti?Fonti.attiSenzaMq(DB,{zona:d.zona}).length:0);
+const nAtti=attiZona.length,nMie=venditeMie.length;
+const vendutiZona=venditeMie.concat(attiZona);
 const nVenduti=vendutiZona.length, recentiZona=vendutiZona.filter(v=>daysSince(v.dataVendita)<365).length;
 const conf=Math.min(92,Math.round((nVenduti===0?15:nVenduti===1?30:nVenduti<=2?45:nVenduti<=4?60:nVenduti<=9?75:85)+Math.min(10,recentiZona*3)));
 const ampia=nVenduti>=3?.07:(nVenduti>=1?.12:.18);
-V.risultato={base,min:Math.round(base*(1-ampia)),max:Math.round(base*(1+ampia)),mq:Math.round(base/Math.max(sup,1)),sup,coef,det,conf,nVenduti,ampia,vendutiZona,zona:d.zona||''}}
+V.risultato={base,min:Math.round(base*(1-ampia)),max:Math.round(base*(1+ampia)),mq:Math.round(base/Math.max(sup,1)),sup,coef,det,conf,nVenduti,nAtti,nMie,attiSenzaMq,ampia,vendutiZona,zona:d.zona||''}}
 function vtStep7(){if(!V.risultato)vtCalcola();const r=V.risultato,d=V.dati;
 const canA=Math.round(r.base*.055),canM=Math.round(canA/12);
 return`<div class="risultato-box"><div class="risultato-prezzo">${fmtEuro(r.base)}</div><div class="risultato-range">Forbice ${fmtEuro(r.min)} – ${fmtEuro(r.max)}</div><div class="risultato-permq">${fmtEuro(r.mq)}/mq · sup comm ${r.sup.toFixed(0)}mq</div>
@@ -1232,7 +1238,7 @@ ${syncCardHTML()}
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div>
-<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.3</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.4</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1352,7 +1358,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.6.3',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.4',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1577,7 +1583,7 @@ function avviaControlloAggiornamenti(){
   });
 }
 avviaControlloAggiornamenti();
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.3','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.4','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
@@ -1875,22 +1881,42 @@ function avviaSveglie(){
 
 /* ---------- 5) STIMA A TRE RIGHE (regole del valutatore) ---------- */
 function statoSemestreOmi(){
-  /* L'Agenzia pubblica il 1° semestre a ottobre e il 2° semestre a marzo.
-     Non si inventa: si dice qual è il semestre ufficiale atteso e si invita
-     a controllare quello nuovo quando è ora. */
-  const ora=new Date(),a=ora.getFullYear(),m=ora.getMonth()+1;
-  const atteso=m>=10?(a+'-S1'):(m>=3?((a-1)+'-S2'):((a-1)+'-S2'));
-  const nuovoIn=m>=9&&m<=10?'1° semestre '+a:(m>=2&&m<=3?'2° semestre '+(a-1):'');
+  /* Il calendario ufficiale lo conosce fonti.js: entro il 15 marzo esce il
+     2° semestre dell'anno prima, entro il 15 ottobre il 1° semestre dell'anno
+     in corso. Niente conti a occhio: date vere dell'Agenzia. */
   const ultimo=(DB.mercato&&DB.mercato.semestreOmi)||(DB.zoneOMI&&DB.zoneOMI[0]&&DB.zoneOMI[0].semestre)||'';
-  const mesi=(function(){if(!ultimo)return null;const y=parseInt(String(ultimo).slice(0,4),10),s=String(ultimo).indexOf('S2')>=0?2:1;return (a-y)*12+(m-(s===1?10:3))})();
-  return {atteso,nuovoIn,ultimo,mesiDaAggiornare:mesi,daAggiornare:mesi!==null&&mesi>8,caricatoOmi:!!(DB.omi&&DB.omi.length)};
+  const base={ultimo:ultimo,caricatoOmi:!!(DB.omi&&DB.omi.length)};
+  if(!window.Fonti)return Object.assign(base,{atteso:'',nuovoIn:'',mesiDaAggiornare:null,daAggiornare:false});
+  const c=Fonti.calendario(new Date());
+  const pubUltimo=Fonti.dataPubblicazione(ultimo),pubAttesa=Fonti.dataPubblicazione(c.ultimo);
+  const daAggiornare=!ultimo||!pubUltimo||pubUltimo<pubAttesa;
+  const mesi=(function(){if(!ultimo)return null;const p=/(\d{4})-S([12])/.exec(ultimo);if(!p)return null;const y=+p[1],s=+p[2],ora=new Date();return (ora.getFullYear()-y)*12+(ora.getMonth()+1-(s===1?10:3))})();
+  return Object.assign(base,{
+    atteso:c.ultimo, attesoEtichetta:c.ultimoEtichetta, ultimoEtichetta:ultimo?Fonti.etichettaSemestre(ultimo):'',
+    prossimoEtichetta:c.prossimoEtichetta, prossimaData:c.prossimaData, prossimaDataIt:c.prossimaDataIt,
+    giorniAlProssimo:c.giorniAlProssimo, mesiDaAggiornare:mesi, daAggiornare:daAggiornare, calendario:c
+  });
 }
 function htmlTreRighe(d,r){
   const s=statoSemestreOmi();
   const vend=r.vendutiZona||[];
   const chiesti=(DB.immobili||[]).filter(i=>i.zona&&d.zona&&String(i.zona).toLowerCase()===String(d.zona).toLowerCase()&&i.prezzo&&i.superficie).map(i=>Math.round(i.prezzo/i.superficie));
   const chiestoMedio=chiesti.length?Math.round(chiesti.reduce((a,b)=>a+b,0)/chiesti.length):0;
-  const vendutoMedio=vend.length?Math.round(vend.reduce((a,b)=>a+Math.round(b.prezzoVendita/b.superficieTotale||0),0)/vend.length):0;
+  /* Media dei venduti veri: atti reali Agenzia + vendite mie. I mq possono
+     stare in superficieTotale o in mq: si guardano tutti e due, altrimenti
+     una vendita senza superficie valeva zero. */
+  const comps=r.vendutiZona||[];
+  const conMq=comps.filter(v=>(v.superficieTotale||v.mq)>0);
+  const vendutoMedio=conMq.length?Math.round(conMq.reduce((a,b)=>a+b.prezzoVendita/(b.superficieTotale||b.mq),0)/conMq.length):0;
+  const recenti12=conMq.filter(v=>v.dataVendita&&daysSince(v.dataVendita)<365).length;
+  const testoVenduto=conMq.length
+    ? ('<b>'+fmtEuro(vendutoMedio)+'/mq</b><div style="font-size:10px;color:var(--text2)">'+conMq.length+' compravendite reali in zona ('+(r.nAtti||0)+' atti Agenzia + '+(r.nMie||0)+' tue) · '+recenti12+' nell\'ultimo anno'+(r.attiSenzaMq?(' · '+r.attiSenzaMq+' atti con soli vani, fuori dal €/mq'):'')+'</div>')
+    : ('<span style="color:var(--orange)"><b>qui il venduto non c\'è</b></span><div style="font-size:10px;color:var(--text2)">senza venduti veri la forbice resta larga e l\'affidabilità bassa: è scritto apposta</div>');
+  const cal=s.calendario||null;
+  const alertSemestre='📅 <b>Calendario ufficiale OMI:</b> '+(cal?esc(cal.testo):'')+
+    '<br>'+(s.ultimoEtichetta?('Qui stai usando: <b>'+esc(s.ultimoEtichetta)+'</b>.'):'Qui non risulta caricato nessun semestre ufficiale: in prima riga c\'è un <b>appunto interno</b>, non OMI.')+
+    (s.daAggiornare?'<br>⚠️ Non è il semestre più recente: la fascia va considerata <b>da aggiornare</b>. Non vuol dire che il mercato è fermo.':'<br>✅ Sei allineato all\'ultimo semestre pubblicato.')+
+    (s.prossimaDataIt?('<br>Il prossimo ('+(s.prossimoEtichetta||'')+') esce il <b>'+esc(s.prossimaDataIt)+'</b>, fra <b>'+s.giorniAlProssimo+'</b> giorni.'):'');
   return `
   <div class="card"><div class="card-title" style="font-size:16px">📋 Le tre righe della stima — non si mescolano</div>
     <div class="table-wrap"><table class="table"><tbody>
@@ -1903,16 +1929,13 @@ function htmlTreRighe(d,r){
       <tr><td><b>2. Chiesto</b><div style="font-size:10px;color:var(--text2)">prezzo pubblicato negli annunci</div></td>
         <td>${chiestoMedio?`<b>${fmtEuro(chiestoMedio)}/mq</b><div style="font-size:10px;color:var(--text2)">media di ${chiesti.length} suoi immobili in zona · non è un venduto</div>`:'<span style="color:var(--text2)">nessun annuncio in zona</span>'}</td></tr>
       <tr><td><b>3. Venduto</b><div style="font-size:10px;color:var(--text2)">solo con fonte vera, ultimi 36 mesi</div></td>
-        <td>${vend.length?`<b>${fmtEuro(vendutoMedio)}/mq</b><div style="font-size:10px;color:var(--text2)">${vend.length} vendite vere in zona (${vend.filter(v=>daysSince(v.dataVendita)<365).length} nell'ultimo anno)</div>`:'<span style="color:var(--orange)"><b>qui il venduto non c\'è</b></span><div style="font-size:10px;color:var(--text2)">senza venduti veri la forbice resta larga e l\'affidabilità bassa: è scritto apposta</div>'}</td></tr>
+        <td>${testoVenduto}</td></tr>
     </tbody></table></div>
-    <div class="alert ${s.daAggiornare?'orange':'green'}" style="margin-top:12px">
-      📅 <b>Semestre OMI:</b> ultimo caricato ${s.ultimo?esc(s.ultimo):'<b>nessuno</b>'} · atteso ora <b>${s.atteso}</b>${s.nuovoIn?' · <b>'+s.nuovoIn+' esce in questi giorni: controlla sul sito dell\'Agenzia</b>':''}
-      ${s.daAggiornare?'<br>⚠️ Sono passati più di 8 mesi: la fascia va considerata <b>da aggiornare</b>. Non vuol dire che il mercato è fermo.':''}${s.caricatoOmi?'':'<br>Il file ufficiale non risulta ancora caricato in Mercato OMI.'}
-    </div>
+    <div class="alert ${s.daAggiornare?'orange':'green'}" style="margin-top:12px">${alertSemestre}</div>
     <div class="alert ${r.nVenduti>=3?'green':'orange'}" style="margin-top:8px">
       🎯 <b>Forbice ${Math.round(r.ampia*200)}%</b> · affidabilità <b>${r.conf}%</b>.
-      ${r.nVenduti>=3?'Ci sono almeno 3 venduti veri: la forbice può essere stretta.'
-        :r.nVenduti>=1?'Con 1 o 2 venduti veri la forbice resta larga, per onestà.'
+      ${r.nVenduti>=3?'Ci sono almeno 3 compravendite reali in zona (atti Agenzia e tue): la forbice può essere stretta.'
+        :r.nVenduti>=1?'Con 1 o 2 compravendite reali la forbice resta larga, per onestà.'
         :'Con zero venduti veri non si stringe: servono vendite reali, non coefficienti.'}
       L'affidabilità sale <b>solo</b> con venduti veri, recenti e in zona. Non è una perizia.
     </div>
@@ -2229,5 +2252,125 @@ function salvaPassaparola(id){
 }
 (function initAutomazioni(){
   function avvia(){try{iniettaAutomazioni();setTimeout(()=>{try{iniettaAutomazioni()}catch(e){}},0)}catch(e){}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();
+})();
+
+/* ================================================================== */
+/* v10.6.4 — FRESCHEZZA DEI DATI DI MERCATO (usa fonti.js)             */
+/* Le fonti non si aggiornano allo stesso ritmo: le quotazioni OMI     */
+/* due volte l'anno, gli atti reali ogni mese, le tue vendite quando   */
+/* le registri. Qui l'app dice sempre cosa ha in mano e cosa manca.    */
+/* ================================================================== */
+function statoFonti(){try{return window.Fonti?Fonti.freschezza(DB,new Date()):null}catch(e){return null}}
+function badgeFonte(f){
+  if(f.stato==='ok')return'<span class="badge badge-green">in regola</span>';
+  if(f.stato==='mai')return'<span class="badge badge-gray">mai fatto</span>';
+  return'<span class="badge" style="background:rgba(249,115,22,.2);color:var(--orange)">da aggiornare</span>';
+}
+function rigaFonte(f){
+  const giorni=(f.giorni!==null&&f.giorni!==undefined&&f.giorni>=0)?'<div style="font-size:10px;color:var(--text2)">'+f.giorni+' giorni fa</div>':'';
+  return '<tr><td><b>'+esc(f.fonte)+'</b><div style="font-size:10px;color:var(--text2)">'+esc(f.cadenza)+'</div></td>'+
+    '<td>'+esc(f.aggiornatoEtichetta)+giorni+'</td>'+
+    '<td style="white-space:nowrap">'+badgeFonte(f)+'</td>'+
+    '<td style="font-size:12px">'+esc(f.nota)+'</td></tr>';
+}
+function htmlDatiMercato(){
+  const st=statoFonti();
+  if(!st)return'';
+  const c=st.calendario;
+  const atti=(DB.vendite||[]).filter(v=>v&&String(v.fonte||'').indexOf('valori dichiarati')>=0);
+  const usabili=atti.filter(v=>(v.mq||0)>0).length;
+  let h='';
+  h+='<div class="card" id="dm-card" style="border-color:rgba(201,169,110,.35)">';
+  h+='<div class="card-title" style="font-size:17px">📅 Dati di mercato — quando si aggiornano</div>';
+  h+='<div class="card-subtitle" style="margin-bottom:10px">Le fonti non vanno tutte allo stesso ritmo. Qui vedi cosa hai in mano, cosa manca e come rinfrescarlo in mezzo minuto. L\'app non può scaricarle da sola: il servizio dell\'Agenzia richiede l\'accesso con SPID o CIE.</div>';
+  h+='<div class="table-wrap"><table class="table"><thead><tr><th>Fonte</th><th>Ultimo dato</th><th>Stato</th><th>A che punto sei</th></tr></thead><tbody>'+st.fonti.map(rigaFonte).join('')+'</tbody></table></div>';
+  if(c)h+='<div class="alert '+(st.fonti[0].stato==='ok'?'green':'orange')+'" style="margin-top:10px">📅 <b>Calendario ufficiale OMI (Agenzia Entrate):</b> '+esc(c.testo)+'</div>';
+  h+='<div class="form-row-3" style="align-items:end;margin-top:10px"><div class="form-group"><label class="form-label">Semestre OMI che stai usando (es. 2025-S2)</label><input class="inp" id="dm-sem" placeholder="2025-S2" value="'+esc((DB.mercato&&DB.mercato.semestreOmi)||'')+'"></div><div class="form-group"><button class="btn btn-ghost btn-sm" onclick="segnaSemestre()">📅 Segna il semestre in uso</button></div></div>';
+  h+='<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">';
+  h+='<div class="card-title" style="font-size:15px">⬆️ Incolla gli atti reali (valori dichiarati)</div>';
+  h+='<div class="login-hint" style="margin-bottom:8px">Dove prenderli: <b>Agenzia Entrate</b> → area riservata (SPID/CIE o Entratel) → <b>Servizi telematici → OMI → Consultazione Valori Immobiliari Dichiarati</b>. Scegli provincia, comune e zona, il periodo (anche solo gli ultimi 3 mesi) e la tipologia <i>Residenziale</i>: poi copia le righe dei risultati e incollale qui sotto.</div>';
+  h+='<div class="form-group"><label class="form-label">Zona, se le righe non la contengono</label><input class="inp" id="dm-zona" placeholder="es. Centro storico" value="'+esc((DB.mercato&&DB.mercato.zonaAtti)||'')+'"></div>';
+  h+='<div class="form-group"><label class="form-label">Righe copiate dall\'Agenzia</label><textarea class="inp" id="dm-testo" rows="5" placeholder="03/2025 ; Residenziale ; 185.000,00 ; 118 mq ; A/2 ; C23 Centro storico"></textarea></div>';
+  h+='<div class="row-tight"><button class="btn btn-gold btn-sm" onclick="leggiAtti()">1️⃣ Leggi e controlla</button><button class="btn btn-primary btn-sm" id="dm-salva" onclick="confermaAtti()" disabled>2️⃣ Aggiungi gli atti</button></div>';
+  h+='<div id="dm-preview" style="margin-top:10px"></div>';
+  h+='<div class="login-hint" style="margin-top:8px">Va bene anche una riga scritta a mano: <code>marzo 2025; 178000; 95 mq; Centro storico</code>. I <b>mq</b> servono per il €/mq: se hai solo i vani l\'atto si salva lo stesso, ma resta fuori dalla media. Sono prezzi <b>dichiarati</b> negli atti: veri, ma se qualcuno ha dichiarato al minimo il numero è basso.</div>';
+  h+='</div>';
+  h+='<div class="login-hint" style="margin-top:10px">📦 Atti reali già dentro: <b>'+atti.length+'</b> ('+usabili+' con i mq, usabili per la media €/mq).'+((DB.mercato&&DB.mercato.ultimoAttiReali)?(' Ultimo caricamento: '+esc(DB.mercato.ultimoAttiReali)):'')+'</div>';
+  h+='</div>';
+  return h;
+}
+function leggiAtti(){
+  const t=document.getElementById('dm-testo'),z=document.getElementById('dm-zona');
+  if(!window.Fonti){showToast('Modulo fonti non caricato','error');return}
+  const zona=z?z.value.trim():'';
+  const r=Fonti.parseAtti(t?t.value:'',{zona:zona});
+  window._attiParse=r;
+  if(zona){if(!DB.mercato)DB.mercato={};DB.mercato.zonaAtti=zona}
+  let h='';
+  if(!r.atti.length){
+    h+='<div class="alert orange">Non ho riconosciuto nessuna riga. Servono mese, anno, prezzo e i mq (o i vani).</div>';
+  }else{
+    const buoni=r.atti.filter(a=>a.usabile).length;
+    h+='<div class="alert green"><b>Ho letto '+r.atti.length+' atti.</b> '+buoni+' hanno i mq ed entrano nella media €/mq'+(r.atti.length>buoni?(', '+(r.atti.length-buoni)+' hanno solo i vani e restano fuori'):'')+'. Controlla che siano giusti prima di salvare.</div>';
+    h+='<div class="table-wrap"><table class="table"><thead><tr><th>Mese/anno</th><th>Prezzo dichiarato</th><th>Superficie</th><th>€/mq</th><th>Zona</th></tr></thead><tbody>';
+    r.atti.slice(0,12).forEach(a=>{h+='<tr><td>'+esc(a.meseAnno)+(a.categoria?' · '+esc(a.categoria):'')+'</td><td>'+fmtEuro(a.prezzo)+'</td><td>'+(a.mq?(esc(String(a.mq))+' mq'):(esc(String(a.vani))+' vani'))+'</td><td>'+(a.mq?fmtEuro(Math.round(a.prezzo/a.mq)):'—')+'</td><td>'+esc(a.zona||'—')+'</td></tr>'});
+    h+='</tbody></table></div>';
+    if(r.atti.length>12)h+='<div class="login-hint">…e altri '+(r.atti.length-12)+' atti.</div>';
+    if(r.avvisi.length)h+='<div class="login-hint" style="color:var(--orange)">⚠️ '+r.avvisi.map(esc).join('<br>')+'</div>';
+  }
+  if(r.scartate.length)h+='<div class="login-hint">Righe non usate ('+r.scartate.length+'): '+r.scartate.slice(0,3).map(x=>'“'+esc(x.riga)+'” → '+esc(x.motivo)).join(' · ')+'</div>';
+  const el=document.getElementById('dm-preview');if(el)el.innerHTML=h;
+  const b=document.getElementById('dm-salva');
+  if(b){b.disabled=!r.atti.length;b.textContent='2️⃣ Aggiungi '+r.atti.length+' atti reali'}
+}
+function confermaAtti(){
+  const r=window._attiParse;
+  if(!window.Fonti||!r||!r.atti.length){showToast('Prima premi "1️⃣ Leggi e controlla"','error');return}
+  const z=document.getElementById('dm-zona');
+  const out=Fonti.salvaAtti(DB,r.atti,{zona:z?z.value.trim():'',citta:(DB.settings&&DB.settings.citta)||'Piacenza'});
+  save();
+  window._attiParse=null;
+  render();
+  showToast('✅ '+out.aggiunti+' atti reali aggiunti'+(out.duplicati?(' ('+out.duplicati+' erano già dentro)'):''));
+}
+function segnaSemestre(){
+  const el=document.getElementById('dm-sem');const v=el?el.value.trim():'';
+  if(!/^\d{4}-S[12]$/.test(v)){showToast('Scrivi il semestre così: 2025-S2','error');return}
+  if(!DB.mercato)DB.mercato={};
+  DB.mercato.semestreOmi=v;save();render();
+  showToast('📅 Semestre in uso: '+Fonti.etichettaSemestre(v));
+}
+function htmlFontiPromemoria(){
+  const st=statoFonti();
+  if(!st||!st.daFare.length)return'';
+  const righe=st.fonti.filter(f=>f.stato!=='ok').map(f=>'<b>'+esc(f.fonte)+'</b>: '+esc(f.nota)).join('<br>');
+  return '<div class="card" style="border-color:rgba(249,115,22,.45)"><div class="card-title" style="color:var(--orange)">🔄 Dati di mercato da rinfrescare</div>'+
+    '<div class="card-subtitle" style="margin-bottom:8px">'+righe+'</div>'+
+    '<button class="btn btn-gold btn-sm" onclick="go(\'mercato\')">📉 Vai a Compravendite OMI</button></div>';
+}
+function iniettaFonti(){
+  try{
+    if(!window.Fonti||typeof RENDERERS==='undefined')return;
+    const _mr=RENDERERS.mercato;
+    if(_mr)RENDERERS.mercato=function(){_mr.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlDatiMercato())}catch(e){console.warn('fonti mercato',e)}};
+    const _df=renderDaFare;
+    renderDaFare=function(){_df.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlFontiPromemoria())}catch(e){}};
+    RENDERERS['da-fare']=renderDaFare;
+  }catch(e){console.warn('fonti',e)}
+}
+function controllaFontiGiornaliero(){
+  try{
+    if(!window.Fonti||!DB)return;
+    const st=statoFonti();
+    if(!st||!st.daFare.length)return;
+    const oggi=isoLocal(new Date());
+    if(localStorage.getItem('immocrm_fonti_avviso')===oggi)return;
+    localStorage.setItem('immocrm_fonti_avviso',oggi);
+    setTimeout(function(){try{showToast('📅 Dati di mercato: '+st.daFare[0]+' — vedi Compravendite OMI','info')}catch(e){}},4000);
+  }catch(e){}
+}
+(function initFonti(){
+  function avvia(){try{iniettaFonti();setTimeout(function(){try{iniettaFonti()}catch(e){}},0);controllaFontiGiornaliero()}catch(e){}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();
 })();

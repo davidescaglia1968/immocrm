@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.16 · 01/10/2026 · sito live v10.6.3)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.17 · 01/10/2026 · sito live v10.6.4)
 ================================================================================
 
 COME SI USA
@@ -74,7 +74,32 @@ Dopo le due analisi, fai rendere l'app al massimo dentro il compito:
   - Aggiorna la riga "Ultima ricerca web" con data e esito.
     La ricerca vecchia non vale più.
 
-Ultima ricerca web: 01/10/2026, sveglie/promemoria e valutatore.
+Ultima ricerca web: 01/10/2026 (seconda ricerca della giornata), freschezza
+  dei dati di mercato. RISULTATO (usarlo, non rifarlo):
+  - LE QUOTAZIONI OMI (fascia €/mq) sono SEMESTRALI: l'Agenzia pubblica
+    entro il 15 MARZO il 2° semestre dell'anno prima ed entro il 15 OTTOBRE
+    il 1° semestre dell'anno in corso. Ciclo interno: aggiornamento banca
+    dati 31/12 e 30/06, validazione 31/01 e 31/07, pubblicazione 15/03 e
+    15/10. Fonte: Agenzia Entrate (trasparenza) + Manuale OMI 2025 + FAQ
+    Geo Network con le date reali (2° sem 2024 → 14/03/2025).
+    MAI dire che le quotazioni OMI si aggiornano più spesso: è falso.
+  - GLI ATTI REALI sono un'altra cosa e hanno un altro ritmo: il servizio
+    "Consultazione Valori Immobiliari Dichiarati" (Agenzia Entrate, gratis,
+    area riservata SPID/CIE/Entratel) mostra i CORRISPETTIVI DICHIARATI
+    negli atti di compravendita, georiferiti, dal 1° gennaio 2019, ultimi 5
+    anni, AGGIORNAMENTO MENSILE. Per ogni atto: mese/anno, tipologia,
+    numero immobili, corrispettivo, comune, zona OMI, categoria catastale e
+    consistenza (in VANI per il gruppo A, m² per il gruppo C — non c'è per
+    D/E/F). Esclude quote di proprietà, nuda proprietà, usufrutto e i comuni
+    con catasto tavolare. Fonte: guida ufficiale del servizio.
+  - Conseguenza pratica: l'app NON può scaricarli da sola (login obbligatorio,
+    nessuna API, CORS). Quindi: sa il calendario a memoria, dice quanto è
+    vecchio ogni dato, e legge in un secondo gli atti che l'agente incolla
+    dalla pagina dei risultati (modulo fonti.js).
+  - Davide credeva che "OMI carica ogni giorno gli immobili compravenduti":
+    la risposta corretta è che gli ATTI si aggiornano OGNI MESE e le
+    QUOTAZIONI due volte l'anno. Non concedere mai l'aggiornamento giornaliero.
+  - Vecchia ricerca (stessa giornata): sveglie/promemoria e valutatore.
   RISULTATO DELLA RICERCA (usarlo, non rifarla da capo):
   - ntfy.sh (gratis, senza account) accetta consegne differite con l'intestazione
     X-Delay, minimo 10 secondi e MASSIMO 3 GIORNI sul servizio pubblico; il piano
@@ -310,6 +335,29 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.12
              (titolo e login: "v10.5.12"). Cache service worker:
              immocrm-shell-v17.
+v10.6.4 (01/10/2026) — stessa sessione, FRESCHEZZA DEI DATI DI MERCATO:
+             file NUOVO fonti.js. Tre cose:
+             1) Calendario ufficiale OMI a memoria (15 marzo e 15 ottobre):
+                dice sempre quale semestre è uscito, quale sta usando l'agente
+                e fra quanti giorni esce il prossimo. Niente più "8 mesi a
+                occhio": date vere.
+             2) Scheda "📅 Dati di mercato — quando si aggiornano" in cima a
+                Compravendite OMI: tre fonti (quotazioni OMI semestrali,
+                atti reali mensili, vendite dell'agente continue) con ultimo
+                dato, giorni passati, stato e cosa fare. Avviso giornaliero
+                in "Da Fare Oggi" quando qualcosa è vecchio.
+             3) "⬆️ Incolla gli atti reali": l'agente copia le righe dal
+                servizio dell'Agenzia e le incolla; l'app le legge (formati
+                liberi: tabulazioni, punti e virgola, "185.000,00", "5,5 vani",
+                "118 mq", "marzo 2025"), mostra un'anteprima da controllare,
+                blocca i doppioni e le manda nella riga "venduto" della stima.
+                Solo gli atti con i mq entrano nella media €/mq; quelli con i
+                soli vani si salvano ma restano fuori, e l'app lo scrive.
+             Corretto anche un bug vecchio: la media dei venduti usava solo
+             superficieTotale, quindi le "vendite viste" (campo mq) valevano
+             zero. Ora guarda tutti e due i campi.
+             Test: 269/269 (nuove sezioni 20 e 21).
+
 v10.6.3 (01/10/2026) — stessa sessione, AUTOMAZIONI:
              file NUOVO automazioni.js. Quattro cose, tutte sui dati già nel CRM:
              1) Marketing: immobile nuovo → clienti da avvisare con punteggio
@@ -347,7 +395,7 @@ v10.6.0 (01/10/2026) — DA QUESTA SESSIONE:
              "⏰ Promemoria", tasti veri al posto di logRapido/deleteEvento,
              tasto 👤 che apre la scheda contatto dalle altre schermate,
              valutatore: riga della fascia onesta e affidabilità legata ai
-             venduti veri. Cache service worker: immocrm-shell-v21 (v10.6.3).
+             venduti veri. Cache service worker: immocrm-shell-v22 (v10.6.4).
              Guida per Davide: GUIDA-SVEGLIE.txt (in italiano semplice).
              Pianificatore facoltativo: .github/workflows/sveglie.yml.
              Login: icona occhio mostra/nasconde il testo nel campo solo
@@ -422,7 +470,7 @@ COMANDI GITHUB — quando pubblichi, fai TUTTO tu. Niente ZIP, niente
      deve premere Ctrl+F5. Non chiedergli di unire o di caricare file.
 
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
-  - index.html, style.css, app.js, sync.js, promemoria.js (v10.6), recupero-dati.js (v10.6.1), automazioni.js (v10.6.3), sw.js
+  - index.html, style.css, app.js, sync.js, promemoria.js (v10.6), recupero-dati.js (v10.6.1), automazioni.js (v10.6.3), fonti.js (v10.6.4), sw.js
   - manifest.webmanifest, icons/
   - LEGGIMI-CARICA-SU-GITHUB.txt
   - questo file
@@ -593,6 +641,16 @@ f) v10.5 — tre blocchi, non romperli:
    rubrica aggiunge il tasto 👤 che apre la scheda (vaiAContatto).
    Non è un secondo archivio e non tocca i dati: è solo un tasto in più.
    Se una sezione non mostra i nomi, il tasto non compare: è normale.
+
+   FRESCHEZZA DEI DATI (v10.6.4). fonti.js conosce il calendario ufficiale
+   (15/03 e 15/10 per le quotazioni OMI), conta i giorni dall'ultimo dato di
+   ogni fonte e legge gli atti reali incollati. REGOLE: (a) le quotazioni OMI
+   non si aggiornano ogni giorno, gli atti sì ogni mese — non confondere le
+   due cose né a parole né nei numeri; (b) gli atti reali entrano SOLO nella
+   riga "venduto" della stima, mai nella fascia OMI; (c) un atto senza mq non
+   entra nella media €/mq e va detto; (d) i corrispettivi sono DICHIARATI:
+   veri, ma se la dichiarazione è al minimo il valore è basso — scriverlo
+   sempre; (e) mai dire che l'app scarica i dati da sola: non può.
 
    AUTOMAZIONI (v10.6.3). automazioni.js calcola tutto in locale sui dati
    esistenti: nessun servizio esterno, nessun dato che esce. I riquadri si
