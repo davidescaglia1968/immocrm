@@ -302,6 +302,7 @@ function makeWindow(url) {
     .replace(/<link rel="manifest"[^>]*>/g, '')
     .replace(/<link rel="[^>]*icons[^>]*>/g, '')
     .replace(/<script src="sync\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'sync.js'), 'utf8') + '<\/script>')
+    .replace(/<script src="promemoria\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'promemoria.js'), 'utf8') + '<\/script>')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + '<\/script>');
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!/Not implemented/.test((e && e.message) || '')) console.error('jsdom:', e && e.message); });
@@ -763,6 +764,98 @@ async function testCerca() {
   win.close();
 }
 
+
+/* ---------------------------------------------------------------- */
+/* 14) v10.6 — promemoria, pulsanti riparati, contatti collegati     */
+/* ---------------------------------------------------------------- */
+async function testPromemoria() {
+  section('14. v10.6: sveglie per i richiami (promemoria.js)');
+  const P = require(path.join(ROOT, 'promemoria.js'));
+  const db = {};
+  const p = P.crea(db, { clienteId: 7, nome: 'Mario Rossi', telefono: '3331112222', data: '2026-11-10', ora: '10:30', nota: 'mutuo' });
+  ok(!!p && db.promemoria.length === 1, 'la sveglia entra nel database esistente (nessun secondo archivio)');
+  const f = P.finestre(p); const q = {}; f.forEach(x => q[x.chiave] = x.quando);
+  ok(f.length === 4, 'quattro sveglie per ogni richiamo');
+  ok(q.t3.getDate() === 7 && q.t3.getHours() === 9, 'tre giorni prima, alle 09:00');
+  ok(q.t1.getDate() === 9 && q.t1.getHours() === 9, 'il giorno prima, alle 09:00');
+  ok(q.t1h.getHours() === 9 && q.t1h.getMinutes() === 30, "un'ora prima del richiamo");
+  ok(q.t0.getHours() === 10 && q.t0.getMinutes() === 30, 'al momento esatto del richiamo');
+  const dopo = new Date(2026, 10, 10, 10, 31);
+  const dovute = P.daInviare(db, dopo);
+  ok(dovute.length === 2, 'invia solo le sveglie recenti, non tutte quelle vecchie in blocco');
+  dovute.forEach(d => P.marcaInviato(d.promemoria, d.finestra.chiave, dopo));
+  ok(P.daInviare(db, dopo).length === 0, 'NESSUN DOPPIONE: la seconda passata non rimanda nulla');
+  ok(P.istante('2026-11-10', '25:99') instanceof Date, 'un orario impossibile viene corretto, non fa esplodere niente');
+  ok(P.crea({}, { data: 'non-data' }) === null, 'una data sbagliata viene rifiutata invece di salvare "oggi"');
+  const testo = P.testoAvviso(p, 'cognome', { chiave: 't0', breve: 'adesso', etichetta: 'adesso' });
+  ok(/Rossi/.test(testo) && !/Mario/.test(testo), 'privacy "cognome": esce solo il cognome');
+  const testo2 = P.testoAvviso(p, 'codice', { chiave: 't0', breve: 'adesso', etichetta: 'adesso' });
+  ok(!/Rossi/.test(testo2) && !/3331112222/.test(testo2) && /7/.test(testo2), 'privacy "codice": non esce né nome né telefono');
+  const ics = P.esportaIcs([p]);
+  ok((ics.match(/BEGIN:VALARM/g) || []).length === 3, 'il file calendario porta con sé 3 sveglie');
+  const cfg = P.configCanali({ settings: {} });
+  ok(cfg.recapito === '3286930033', 'il recapito predefinito è il suo numero: 3286930033');
+  ok(cfg.smsOk === false, "SMS spento finché non lo attiva (serve un account di invio)");
+  const sms = await P.inviaSms(cfg, 'x');
+  ok(sms.ok === false && /non attivato/.test(sms.motivo), "senza attivazione l'SMS non parte e lo dice con chiarezza");
+  const db2 = {};   /* cassetto nuovo: nel primo le sveglie risultano già inviate */
+  P.crea(db2, { clienteId: 9, nome: 'Luigi Verdi', telefono: '3335556666', data: '2026-11-10', ora: '10:30' });
+  const coda = P.codaSveglia(db2, new Date(2026, 10, 8, 8, 0), 72);
+  ok(coda.length >= 1, 'la coda per il pianificatore esterno si prepara');
+  ok(!/Verdi/.test(JSON.stringify(coda)), 'la coda NON contiene i nomi dei clienti');
+  const finto = (u, o) => { finto.ultimo = o; return Promise.resolve({ ok: true, status: 200 }); };
+  await P.inviaNtfy(Object.assign({}, cfg, { ntfy: 'prova' }), 'T', 'testo', new Date(Date.now() + 3600000), finto);
+  ok(finto.ultimo.headers['X-Delay'] > 3000, 'ntfy riceve la sveglia con il ritardo giusto (fino a 3 giorni)');
+  await P.inviaNtfy(Object.assign({}, cfg, { ntfy: 'prova' }), 'T', 'testo', new Date(Date.now() + 6 * 86400000), finto);
+  const oltre = await P.inviaNtfy(Object.assign({}, cfg, { ntfy: 'prova' }), 'T', 'testo', new Date(Date.now() + 6 * 86400000), finto);
+  ok(oltre.ok === false, 'oltre i 3 giorni avvisa invece di fingere che sia arrivata');
+}
+
+async function testAppV106() {
+  section('15. v10.6: pulsanti riparati, contatti apribili, dati intatti');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.render === 'function' && win.Promemoria);
+  const p = win.document.getElementById('login-pass'); if (p) p.value = 'successo';
+  try { await win.doLogin(); } catch (e) { }
+  await waitUntil(() => win.document.getElementById('app-shell').style.display !== 'none').catch(() => { });
+  ok(typeof win.logRapido === 'function', 'logRapido esiste (prima il tasto "Log chiamata" era morto)');
+  ok(typeof win.deleteEvento === 'function', 'deleteEvento esiste (prima la "✕" degli eventi era morta)');
+  ok(win.eval("NAV_ITEMS.some(x=>x.id==='promemoria')"), 'la voce Promemoria è nel menu');
+  ok(win.eval("typeof RENDERERS.promemoria==='function'"), 'la sezione Promemoria è collegata');
+  win.eval("activeSection='promemoria'"); win.render();
+  const c1 = win.document.getElementById('content').innerHTML;
+  ok(/Promemoria e sveglie/.test(c1) && /ntfy/.test(c1) && /3286930033/.test(c1), 'la schermata mostra canali e recapito');
+  /* sveglia creata dalla scheda contatto */
+  win.DB.clienti.push({ id: 501, nome: 'Prova', cognome: 'Sveglia', telefono: '3330001111', stato: 'Nuovo', tipo: 'acquirente', dataCreazione: '2026-10-01', updatedAt: 1 });
+  win.eval("activeSection='contatti';render()");
+  win.openContattoModal(501);
+  ok(!!win.document.getElementById('prm-data') && !!win.document.getElementById('prm-ora'), 'nella scheda ci sono data E ora del richiamo');
+  win.document.getElementById('prm-data').value = '2026-11-10';
+  win.document.getElementById('prm-ora').value = '15:45';
+  win.creaPromemoriaDaScheda(501, 0);
+  const creata = (win.DB.promemoria || []).find(x => String(x.clienteId) === '501');
+  ok(!!creata && creata.ora === '15:45', 'la sveglia viene salvata con data e ora');
+  ok(win.eval("raccogliScadenze().some(x=>x.tipo==='Sveglia')"), 'la sveglia entra nella campanella delle scadenze');
+  win.eval("closeModal()");
+  /* contatto apribile da un'altra sezione */
+  win.DB.chiamate = [{ id: 601, nome: 'Prova Sveglia', telefono: '3330001111', stato: 'da-richiamare', dataRichiamo: '2026-10-20', updatedAt: 2 }];
+  win.eval("activeSection='chiamate';render()");
+  ok(win.document.querySelectorAll('#content .link-scheda').length > 0, 'da Chiamate compare il tasto 👤 che apre la scheda');
+  /* valutatore: la regola dell'affidabilità */
+  win.DB.vendite = [];
+  win.eval("V={step:1,dati:{zona:'Centro Storico',mq:95,locali:4,anno:1980,piano:2,ascensore:true,stato:'buono',classe:'C',tipo:'trilocale'},risultato:null}");
+  win.eval("vtCalcola()");
+  const r0 = win.eval("V.risultato.conf");
+  ok(r0 <= 20, 'senza venduti veri l\'affidabilita resta bassa (' + r0 + '%): non sale contando i coefficienti');
+  win.DB.vendite = [1, 2, 3, 4, 5, 6].map(i => ({ id: 700 + i, zona: 'Centro Storico', prezzoPubblicato: 190000, prezzoVendita: 178000, superficieTotale: 95, dataVendita: '2026-0' + i + '-01', updatedAt: 3 }));
+  win.eval("vtCalcola()");
+  const r6 = win.eval("V.risultato.conf");
+  ok(r6 > r0 && r6 <= 92, 'con venduti veri sale ma non tocca mai il 100% (' + r0 + '% → ' + r6 + '%)');
+  ok(win.eval("V.risultato.ampia") === 0.07, 'con 3+ venduti la forbice si stringe');
+  ok(!/Base OMI/.test(win.eval("htmlTreRighe(V.dati,V.risultato)")) || /^omi/i.test(win.eval("V.risultato.det[0].condizione")), 'la riga della fascia non si chiama "Base OMI" se la fonte non è OMI');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -780,6 +873,8 @@ async function testCerca() {
   try { await testQRApp(); } catch (e) { failed++; failures.push('qrapp: ' + e.message); console.log('  ❌ qrapp exception', e.message); }
   try { await testProtezione(); } catch (e) { failed++; failures.push('protezione: ' + e.message); console.log('  ❌ protezione exception', e.message); }
   try { await testCerca(); } catch (e) { failed++; failures.push('cerca: ' + e.message); console.log('  ❌ cerca exception', e.message); }
+  try { await testPromemoria(); } catch (e) { failed++; failures.push('promemoria: ' + e.message); console.log('  ❌ promemoria exception', e.message); }
+  try { await testAppV106(); } catch (e) { failed++; failures.push('app106: ' + e.message); console.log('  ❌ app106 exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }

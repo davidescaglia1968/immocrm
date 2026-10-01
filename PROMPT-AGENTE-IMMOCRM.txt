@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.14 · 29/09/2026 · sito live v10.5.7)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.15 · 01/10/2026 · sito live v10.6.0)
 ================================================================================
 
 COME SI USA
@@ -74,7 +74,26 @@ Dopo le due analisi, fai rendere l'app al massimo dentro il compito:
   - Aggiorna la riga "Ultima ricerca web" con data e esito.
     La ricerca vecchia non vale più.
 
-Ultima ricerca web: 28/09/2026, ricerca contatti (nome e indirizzo).
+Ultima ricerca web: 01/10/2026, sveglie/promemoria e valutatore.
+  RISULTATO DELLA RICERCA (usarlo, non rifarla da capo):
+  - ntfy.sh (gratis, senza account) accetta consegne differite con l'intestazione
+    X-Delay, minimo 10 secondi e MASSIMO 3 GIORNI sul servizio pubblico; il piano
+    gratuito regge 250 messaggi al giorno. Oltre i 3 giorni la consegna va
+    riarmata quando l'app si apre: ImmoCRM lo fa da solo a ogni apertura.
+  - Una PWA su GitHub Pages NON può inviare SMS: serve un servizio di invio
+    (Twilio, Skebby) con credenziali sue. Il canale SMS esiste nel codice ma
+    è SPENTO di default e lo dice. Non promettere SMS senza quel passaggio.
+  - iPhone non ha background sync né periodic sync: l'app web non può
+    "svegliare" il telefono da sola ad app chiusa. Per questo i canali giusti
+    sono ntfy/Telegram (consegna lato server) e il file calendario .ics.
+  - OMI: le quotazioni sono SEMESTRALI. L'Agenzia pubblica il 1° semestre a
+    ottobre e il 2° semestre a marzo (esempi: 15/10/2025 per il 2025-S1,
+    14/03/2025 per il 2024-S2). A ottobre 2026 il semestre atteso è il 2026-S1.
+    Le quotazioni si scaricano gratis dall'area riservata (Entratel/Fisconline)
+    dal 1° semestre 2016; i 6 semestri più recenti si consultano liberamente.
+    Citare sempre "Agenzia Entrate - OMI" e dire che non sostituisce la stima
+    puntuale. Non esiste alcun aggiornamento "continuo": è semestrale.
+  La ricerca del 28/09/2026 sui contatti (nome e indirizzo) resta valida.
   I CRM immobiliari cercano nello stesso posto nome, telefono e via.
   L'ordine può essere invertito (cognome prima del nome). Gli accenti
   e l'apostrofo non devono far sparire la persona. Sostituire tutta
@@ -291,6 +310,14 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.12
              (titolo e login: "v10.5.12"). Cache service worker:
              immocrm-shell-v17.
+v10.6.0 (01/10/2026) — DA QUESTA SESSIONE:
+             sveglie per i richiami (file NUOVO promemoria.js), sezione di menu
+             "⏰ Promemoria", tasti veri al posto di logRapido/deleteEvento,
+             tasto 👤 che apre la scheda contatto dalle altre schermate,
+             valutatore: riga della fascia onesta e affidabilità legata ai
+             venduti veri. Cache service worker: immocrm-shell-v18.
+             Guida per Davide: GUIDA-SVEGLIE.txt (in italiano semplice).
+             Pianificatore facoltativo: .github/workflows/sveglie.yml.
              Login: icona occhio mostra/nasconde il testo nel campo solo
              sul dispositivo; non recupera né invia la password.
              Recupero dispositivo autorizzato: Impostazioni → Sicurezza;
@@ -363,7 +390,7 @@ COMANDI GITHUB — quando pubblichi, fai TUTTO tu. Niente ZIP, niente
      deve premere Ctrl+F5. Non chiedergli di unire o di caricare file.
 
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
-  - index.html, style.css, app.js, sync.js, sw.js
+  - index.html, style.css, app.js, sync.js, promemoria.js (NUOVO v10.6), sw.js
   - manifest.webmanifest, icons/
   - LEGGIMI-CARICA-SU-GITHUB.txt
   - questo file
@@ -383,7 +410,7 @@ Test       : npm test → tests/run.cjs. FALLITI: 0 prima di pubblicare.
              win.isoLocal.
 
 Sezioni del CRM (non toccarle se non richiesto):
-  Regia del Giorno, Obiettivi, Chiamate, Dashboard, Da Fare, Contatti,
+  Regia del Giorno, Obiettivi, Chiamate, Dashboard, Da Fare, Promemoria (v10.6), Contatti,
   Immobili, Mandati, Open House, Pipeline, Mercato OMI, Valutatore,
   Incroci & Monitoraggio, Lead, Importa Rubrica, Attività, Calendario,
   Documenti (AML), Fatture, Report Settimanale, Report Proprietari,
@@ -516,6 +543,32 @@ f) v10.5 — tre blocchi, non romperli:
    corretta nella v10.5.1 non ancora pubblicata. Se la rivedi sul
    sito v10.5.0, correggila quando tocchi quella zona.
 
+   SVEGLIE (v10.6, NON ROMPERE). I promemoria stanno in DB.promemoria,
+   dentro lo stesso file cifrato: nessun secondo archivio. Quattro sveglie
+   per richiamo: 3 giorni prima alle 09:00, il giorno prima alle 09:00,
+   un'ora prima, e al momento esatto. Ogni sveglia si segna in p.inviati
+   (chiave t3/t1/t1h/t0): una volta sola, mai due volte. Quelle più vecchie
+   di 12 ore si archiviano come "saltata" invece di arrivare in blocco.
+   Canali: notifica locale, ntfy (X-Delay max 3 giorni), Telegram, SMS
+   (spento di default: serve un account di invio), file .ics con 3 VALARM.
+   Privacy: in modo "codice" non escono né nome né telefono né nota.
+   Il recapito predefinito è 3286930033 (DB.settings.promemoria.recapito).
+   copiaPrimaDiAggiornare() salva la copia immocrm_backup_pre_106 una volta
+   sola: non cancellarla, è la rete di sicurezza dell'aggiornamento.
+
+   COLLEGAMENTO CONTATTI (v10.6). Dopo ogni render() passa
+   collegaContattiAutomatico(): dove compare un nome o un telefono di
+   rubrica aggiunge il tasto 👤 che apre la scheda (vaiAContatto).
+   Non è un secondo archivio e non tocca i dati: è solo un tasto in più.
+   Se una sezione non mostra i nomi, il tasto non compare: è normale.
+
+   STIMA A TRE RIGHE (v10.6). L'affidabilità si calcola SOLO dai venduti
+   veri in zona (quanti e quanto recenti): 0 venduti → 15%, mai oltre 92%.
+   La forbice è ±7% con 3+ venduti, ±12% con 1-2, ±18% con zero. La prima
+   riga della tabella si chiama "Fascia OMI ufficiale" SOLO se la fonte
+   inizia per OMI, altrimenti "Appunto interno (NON OMI)". Non far tornare
+   l'etichetta "Base OMI" su fonti Borsino/portale: era un errore.
+
    PROTEZIONE DATI. requestPersist a ogni boot. Doppia copia in
    mirror. readBootDB recupera da localStorage o dalle copie se il
    resto è vuoto, e scarta l'involucro {db, ts} di IndexedDB.
@@ -613,6 +666,25 @@ v10.5.1, NON sul sito (ramo di lavoro, 24/09/2026):
   Davide a caricarla se non te lo chiede: il 24/09 si è perso
   proprio su quel caricamento.
 
+v10.6.0, da pubblicare (sessione del 01/10/2026):
+  1. Sveglie e promemoria per ogni contatto, con data E ora del richiamo.
+     Quattro avvisi (3 giorni, 1 giorno, 1 ora, momento esatto), senza doppioni.
+     Canali: notifica, ntfy, Telegram, SMS (da attivare), calendario .ics,
+     WhatsApp a un tocco. Guida: GUIDA-SVEGLIE.txt.
+  2. Riparati i tasti della scheda contatto che non facevano nulla:
+     logRapido (Log chiamata / WhatsApp / visita) e deleteEvento (la "✕").
+  3. Ogni contatto apribile dalle altre schermate: tasto 👤 accanto ai nomi
+     e ai telefoni che compaiono nelle liste.
+  4. Valutatore: via l'etichetta "Base OMI" da fonti non OMI; affidabilità
+     calcolata sui venduti veri (non sui coefficienti); forbice che si
+     allarga quando i venduti sono pochi; riquadro delle tre righe con
+     fonte e data; stato del semestre OMI col mese di pubblicazione;
+     scheda stampabile "non è una perizia".
+  5. Rete di sicurezza: copia del database prima del primo salvataggio
+     con la nuova versione (immocrm_backup_pre_106) e tasto di ripristino.
+  Test: 174/174 ok (erano 141). Nuovi: promemoria.js in Node puro e
+  l'app in jsdom (pulsanti, collegamenti, dati intatti, regole del valutatore).
+
 Collegamento fatto da Davide il 24/09/2026:
   Computer e telefono risultano nello stesso elenco dispositivi.
   Vedi sezione 2. Non rifare il collegamento. Non generare un
@@ -655,6 +727,13 @@ La riga "Ultima ricerca web" si aggiorna a ogni implementazione.
 - Nel test del server GitHub finto, le letture RAW vogliono
   Authorization: Bearer, altrimenti 401.
 - Non rifattorizzare app.js in moduli se non è chiesto.
+- Nei template literal, un ternario dentro ${...} DEVE avere anche il ramo ":"
+  (esempio giusto: ${c ? 'x' : ''}). Scriverlo senza ":" blocca TUTTO app.js
+  con "Unexpected token '}'": è già successo il 01/10/2026 e il messaggio
+  d'errore indica una riga più avanti di quella vera. Dopo ogni modifica:
+  node --check app.js.
+- Il motore JS di un ambiente di prova può rifiutare codice valido: prima di
+  dare la colpa all'ambiente, verificare che la riga di prova sia JS corretto.
 - Non aggiungere librerie esterne.
 
 --------------------------------------------------------------------------------
@@ -667,6 +746,7 @@ La riga "Ultima ricerca web" si aggiorna a ogni implementazione.
   [ ] cache e versioni aggiornate, se hai toccato l'app
   [ ] nessun segreto nel diff
   [ ] questo file aggiornato se i fatti sono cambiati
+  [ ] promemoria.js: nessun doppione di sveglia (test 14/15 verdi)
   [ ] a Davide: italiano, un passo, nome del tasto, come capire che
       ha funzionato
 ================================================================================
