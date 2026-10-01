@@ -1238,7 +1238,7 @@ ${syncCardHTML()}
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div>
-<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.4</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.5</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1358,7 +1358,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.6.4',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.5',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1583,7 +1583,7 @@ function avviaControlloAggiornamenti(){
   });
 }
 avviaControlloAggiornamenti();
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.4','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.5','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
@@ -2205,30 +2205,56 @@ function htmlBackupPromemoria(){
 }
 
 /* ---------- 6) collegamento alle schermate ---------- */
+/* Gli avvolgimenti si mettono UNA volta sola. Se l'avvio gira due volte
+   (e succede: DOMContentLoaded + setTimeout), non si crea una seconda copia
+   della scheda: una copia in più vuol dire id doppi, e allora l'agente scrive
+   in una casella e il codice ne legge un'altra. Successo davvero. */
+function avvolgiSchermata(nome,htmlFn,marca){
+  /* Il registro sta su window e vale per modulo: qualunque sia l'ordine degli
+     avvii, una scheda si inietta UNA volta sola. */
+  try{
+    const orig=window[nome];
+    if(typeof orig!=='function')return false;
+    const chiave=nome+'|'+marca;
+    window._schedeIniettate=window._schedeIniettate||{};
+    if(window._schedeIniettate[chiave])return false;
+    window._schedeIniettate[chiave]=true;
+    const w=function(){orig.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlFn())}catch(e){console.warn('automazioni',e)}};
+    w[marca]=true;
+    window[nome]=w;
+    return true;
+  }catch(e){return false}
+}
 function iniettaAutomazioni(){
   try{
     if(!window.Automazioni)return;
-    /* Marketing: in cima alla schermata Marketing */
-    const _mk=renderMarketing;renderMarketing=function(c){_mk.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlMarketingNuovo())}catch(e){}};
-    /* Statistiche: performance in cima */
-    const _st=renderStatistiche;renderStatistiche=function(c){_st.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlPerformance())}catch(e){}};
-    /* Report proprietari: rapporto in cima */
-    const _rp=renderReportProp;renderReportProp=function(c){_rp.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlReportProprietario())}catch(e){}};
-    /* Da Fare Oggi: follow-up + promemoria backup in cima */
-    const _df=renderDaFare;renderDaFare=function(c){_df.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlBackupPromemoria()+htmlFollowUp())}catch(e){}};
-    /* Promemoria: avviso backup in cima */
-    const _pr=renderPromemoria;renderPromemoria=function(c){_pr.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlBackupPromemoria())}catch(e){}};
-    /* la mappa delle sezioni deve puntare alle versioni nuove */
-    if(typeof RENDERERS!=='undefined'){
-      RENDERERS.marketing=renderMarketing;RENDERERS.statistiche=renderStatistiche;
-      RENDERERS['report-prop']=renderReportProp;RENDERERS['da-fare']=renderDaFare;
-      RENDERERS.promemoria=renderPromemoria;
+    if(avvolgiSchermata('renderMarketing',htmlMarketingNuovo,'__autoAz')){
+      if(typeof RENDERERS!=='undefined')RENDERERS.marketing=window.renderMarketing;
+    }
+    if(avvolgiSchermata('renderStatistiche',htmlPerformance,'__autoAz')){
+      if(typeof RENDERERS!=='undefined')RENDERERS.statistiche=window.renderStatistiche;
+    }
+    if(avvolgiSchermata('renderReportProp',htmlReportProprietario,'__autoAz')){
+      if(typeof RENDERERS!=='undefined')RENDERERS['report-prop']=window.renderReportProp;
+    }
+    if(avvolgiSchermata('renderDaFare',function(){return htmlBackupPromemoria()+htmlFollowUp()},'__autoAz')){
+      if(typeof RENDERERS!=='undefined')RENDERERS['da-fare']=window.renderDaFare;
+    }
+    if(avvolgiSchermata('renderPromemoria',htmlBackupPromemoria,'__autoAz')){
+      if(typeof RENDERERS!=='undefined')RENDERERS.promemoria=window.renderPromemoria;
     }
     /* registra la data dell'export, per il promemoria del backup */
-    const _exp=esportaBackup;esportaBackup=function(){const r=_exp.apply(null,arguments);try{Automazioni.registraExport(DB,new Date());save()}catch(e){}return r};
+    if(typeof esportaBackup==='function'&&!esportaBackup.__autoAz){
+      const _exp=esportaBackup;
+      const w=function(){const r=_exp.apply(null,arguments);try{Automazioni.registraExport(DB,new Date());save()}catch(e){}return r};
+      w.__autoAz=true;window.esportaBackup=w;
+    }
     /* "Portato da": campo passaparola nella scheda contatto */
-    const _inj=iniettaPromemoriaInScheda;
-    iniettaPromemoriaInScheda=function(id){_inj.apply(null,arguments);try{iniettaPassaparola(id)}catch(e){}};
+    if(typeof iniettaPromemoriaInScheda==='function'&&!iniettaPromemoriaInScheda.__autoAzPP){
+      const _inj=iniettaPromemoriaInScheda;
+      const w=function(id){_inj.apply(null,arguments);try{iniettaPassaparola(id)}catch(e){}};
+      w.__autoAzPP=true;window.iniettaPromemoriaInScheda=w;
+    }
   }catch(e){console.warn('automazioni',e)}
 }
 function iniettaPassaparola(id){
@@ -2286,13 +2312,13 @@ function htmlDatiMercato(){
   h+='<div class="card-subtitle" style="margin-bottom:10px">Le fonti non vanno tutte allo stesso ritmo. Qui vedi cosa hai in mano, cosa manca e come rinfrescarlo in mezzo minuto. L\'app non può scaricarle da sola: il servizio dell\'Agenzia richiede l\'accesso con SPID o CIE.</div>';
   h+='<div class="table-wrap"><table class="table"><thead><tr><th>Fonte</th><th>Ultimo dato</th><th>Stato</th><th>A che punto sei</th></tr></thead><tbody>'+st.fonti.map(rigaFonte).join('')+'</tbody></table></div>';
   if(c)h+='<div class="alert '+(st.fonti[0].stato==='ok'?'green':'orange')+'" style="margin-top:10px">📅 <b>Calendario ufficiale OMI (Agenzia Entrate):</b> '+esc(c.testo)+'</div>';
-  h+='<div class="form-row-3" style="align-items:end;margin-top:10px"><div class="form-group"><label class="form-label">Semestre OMI che stai usando (es. 2025-S2)</label><input class="inp" id="dm-sem" placeholder="2025-S2" value="'+esc((DB.mercato&&DB.mercato.semestreOmi)||'')+'"></div><div class="form-group"><button class="btn btn-ghost btn-sm" onclick="segnaSemestre()">📅 Segna il semestre in uso</button></div></div>';
+  h+='<div class="form-row-3" style="align-items:end;margin-top:10px"><div class="form-group"><label class="form-label">Semestre OMI che stai usando (es. 2025-S2)</label><input class="inp" id="dm-sem" placeholder="2025-S2" value="'+esc((DB.mercato&&DB.mercato.semestreOmi)||'')+'"></div><div class="form-group"><button class="btn btn-ghost btn-sm" onclick="segnaSemestre(this)">📅 Segna il semestre in uso</button></div></div>';
   h+='<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:14px">';
   h+='<div class="card-title" style="font-size:15px">⬆️ Incolla gli atti reali (valori dichiarati)</div>';
   h+='<div class="login-hint" style="margin-bottom:8px">Dove prenderli: <b>Agenzia Entrate</b> → area riservata (SPID/CIE o Entratel) → <b>Servizi telematici → OMI → Consultazione Valori Immobiliari Dichiarati</b>. Scegli provincia, comune e zona, il periodo (anche solo gli ultimi 3 mesi) e la tipologia <i>Residenziale</i>: poi copia le righe dei risultati e incollale qui sotto.</div>';
   h+='<div class="form-group"><label class="form-label">Zona, se le righe non la contengono</label><input class="inp" id="dm-zona" placeholder="es. Centro storico" value="'+esc((DB.mercato&&DB.mercato.zonaAtti)||'')+'"></div>';
   h+='<div class="form-group"><label class="form-label">Righe copiate dall\'Agenzia</label><textarea class="inp" id="dm-testo" rows="5" placeholder="03/2025 ; Residenziale ; 185.000,00 ; 118 mq ; A/2 ; C23 Centro storico"></textarea></div>';
-  h+='<div class="row-tight"><button class="btn btn-gold btn-sm" onclick="leggiAtti()">1️⃣ Leggi e controlla</button><button class="btn btn-primary btn-sm" id="dm-salva" onclick="confermaAtti()" disabled>2️⃣ Aggiungi gli atti</button></div>';
+  h+='<div class="row-tight"><button class="btn btn-gold btn-sm" id="dm-leggi" onclick="leggiAtti(this)">1️⃣ Leggi e controlla</button><button class="btn btn-primary btn-sm" id="dm-salva" onclick="confermaAtti(this)" disabled>2️⃣ Aggiungi gli atti</button></div>';
   h+='<div id="dm-preview" style="margin-top:10px"></div>';
   h+='<div class="login-hint" style="margin-top:8px">Va bene anche una riga scritta a mano: <code>marzo 2025; 178000; 95 mq; Centro storico</code>. I <b>mq</b> servono per il €/mq: se hai solo i vani l\'atto si salva lo stesso, ma resta fuori dalla media. Sono prezzi <b>dichiarati</b> negli atti: veri, ma se qualcuno ha dichiarato al minimo il numero è basso.</div>';
   h+='</div>';
@@ -2300,15 +2326,24 @@ function htmlDatiMercato(){
   h+='</div>';
   return h;
 }
-function leggiAtti(){
-  const t=document.getElementById('dm-testo'),z=document.getElementById('dm-zona');
+function campoDM(btn,id){
+  /* Legge il campo DENTRO la scheda del tasto premuto, non "il primo che
+     capita": se per qualsiasi motivo ci fosse una casella in più, si legge
+     sempre quella giusta. */
+  try{const c=btn&&btn.closest?btn.closest('.card'):null;const s=c||document;const e=s.querySelector('#'+id);if(e)return e}catch(e){}
+  return document.getElementById(id);
+}
+function leggiAtti(btn){
+  const t=campoDM(btn,'dm-testo'),z=campoDM(btn,'dm-zona');
   if(!window.Fonti){showToast('Modulo fonti non caricato','error');return}
   const zona=z?z.value.trim():'';
   const r=Fonti.parseAtti(t?t.value:'',{zona:zona});
   window._attiParse=r;
   if(zona){if(!DB.mercato)DB.mercato={};DB.mercato.zonaAtti=zona}
   let h='';
-  if(!r.atti.length){
+  if(!r.atti.length&&!r.scartate.length){
+    h+='<div class="alert orange">La casella <b>Righe copiate dall\'Agenzia</b> è vuota: incolla prima le righe, poi premi "1️⃣ Leggi e controlla".</div>';
+  }else if(!r.atti.length){
     h+='<div class="alert orange">Non ho riconosciuto nessuna riga. Servono mese, anno, prezzo e i mq (o i vani).</div>';
   }else{
     const buoni=r.atti.filter(a=>a.usabile).length;
@@ -2320,22 +2355,22 @@ function leggiAtti(){
     if(r.avvisi.length)h+='<div class="login-hint" style="color:var(--orange)">⚠️ '+r.avvisi.map(esc).join('<br>')+'</div>';
   }
   if(r.scartate.length)h+='<div class="login-hint">Righe non usate ('+r.scartate.length+'): '+r.scartate.slice(0,3).map(x=>'“'+esc(x.riga)+'” → '+esc(x.motivo)).join(' · ')+'</div>';
-  const el=document.getElementById('dm-preview');if(el)el.innerHTML=h;
-  const b=document.getElementById('dm-salva');
-  if(b){b.disabled=!r.atti.length;b.textContent='2️⃣ Aggiungi '+r.atti.length+' atti reali'}
+  const el=campoDM(btn,'dm-preview');if(el)el.innerHTML=h;
+  const b=campoDM(btn,'dm-salva');
+  if(b){b.disabled=!r.atti.length;b.textContent=r.atti.length?('2️⃣ Aggiungi '+r.atti.length+' atti reali'):'2️⃣ Aggiungi gli atti'}
 }
-function confermaAtti(){
+function confermaAtti(btn){
   const r=window._attiParse;
   if(!window.Fonti||!r||!r.atti.length){showToast('Prima premi "1️⃣ Leggi e controlla"','error');return}
-  const z=document.getElementById('dm-zona');
+  const z=campoDM(btn,'dm-zona');
   const out=Fonti.salvaAtti(DB,r.atti,{zona:z?z.value.trim():'',citta:(DB.settings&&DB.settings.citta)||'Piacenza'});
   save();
   window._attiParse=null;
   render();
   showToast('✅ '+out.aggiunti+' atti reali aggiunti'+(out.duplicati?(' ('+out.duplicati+' erano già dentro)'):''));
 }
-function segnaSemestre(){
-  const el=document.getElementById('dm-sem');const v=el?el.value.trim():'';
+function segnaSemestre(btn){
+  const el=campoDM(btn,'dm-sem');const v=el?el.value.trim():'';
   if(!/^\d{4}-S[12]$/.test(v)){showToast('Scrivi il semestre così: 2025-S2','error');return}
   if(!DB.mercato)DB.mercato={};
   DB.mercato.semestreOmi=v;save();render();
@@ -2352,11 +2387,8 @@ function htmlFontiPromemoria(){
 function iniettaFonti(){
   try{
     if(!window.Fonti||typeof RENDERERS==='undefined')return;
-    const _mr=RENDERERS.mercato;
-    if(_mr)RENDERERS.mercato=function(){_mr.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlDatiMercato())}catch(e){console.warn('fonti mercato',e)}};
-    const _df=renderDaFare;
-    renderDaFare=function(){_df.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlFontiPromemoria())}catch(e){}};
-    RENDERERS['da-fare']=renderDaFare;
+    if(avvolgiSchermata('renderMercato',htmlDatiMercato,'__fonti'))RENDERERS.mercato=window.renderMercato;
+    if(avvolgiSchermata('renderDaFare',htmlFontiPromemoria,'__fonti'))RENDERERS['da-fare']=window.renderDaFare;
   }catch(e){console.warn('fonti',e)}
 }
 function controllaFontiGiornaliero(){

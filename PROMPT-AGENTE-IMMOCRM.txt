@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.17 · 01/10/2026 · sito live v10.6.4)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.18 · 01/10/2026 · sito live v10.6.5)
 ================================================================================
 
 COME SI USA
@@ -335,6 +335,23 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.12
              (titolo e login: "v10.5.12"). Cache service worker:
              immocrm-shell-v17.
+v10.6.5 (01/10/2026) — stessa sessione, CORREZIONE IMPORTANTE:
+             Davide ha visto la scheda "Dati di mercato" DUE VOLTE e, premendo
+             "Leggi e controlla" con la riga scritta a video, l'app rispondeva
+             "Non ho riconosciuto nessuna riga". Causa vera, riprodotta:
+             l'avvio dell'iniezione girava due volte (DOMContentLoaded +
+             setTimeout), quindi la scheda si disegnava in due copie con id
+             uguali e la lettura andava a finire sulla casella vuota
+             dell'altra copia. Il testo era giusto: era il doppione.
+             Rimedi: (a) registro unico su window._schedeIniettate, chiave
+             "schermata|modulo" — ogni scheda si inietta una volta sola,
+             qualunque sia l'ordine degli avvii; (b) le letture si fanno
+             DENTRO la scheda del tasto premuto (leggiAtti(this) → campoDM),
+             così nemmeno un doppione può più sbagliare casella; (c) casella
+             vuota → messaggio dedicato, non un'accusa alla riga.
+             Vale per automazioni.js e fonti.js: sono avvolti allo stesso modo.
+             Test: 288/288 (sezione 22 con l'esca e la doppia iniezione forzata).
+
 v10.6.4 (01/10/2026) — stessa sessione, FRESCHEZZA DEI DATI DI MERCATO:
              file NUOVO fonti.js. Tre cose:
              1) Calendario ufficiale OMI a memoria (15 marzo e 15 ottobre):
@@ -395,7 +412,7 @@ v10.6.0 (01/10/2026) — DA QUESTA SESSIONE:
              "⏰ Promemoria", tasti veri al posto di logRapido/deleteEvento,
              tasto 👤 che apre la scheda contatto dalle altre schermate,
              valutatore: riga della fascia onesta e affidabilità legata ai
-             venduti veri. Cache service worker: immocrm-shell-v22 (v10.6.4).
+             venduti veri. Cache service worker: immocrm-shell-v23 (v10.6.5).
              Guida per Davide: GUIDA-SVEGLIE.txt (in italiano semplice).
              Pianificatore facoltativo: .github/workflows/sveglie.yml.
              Login: icona occhio mostra/nasconde il testo nel campo solo
@@ -812,6 +829,12 @@ La riga "Ultima ricerca web" si aggiorna a ogni implementazione.
 --------------------------------------------------------------------------------
 9) ERRORI GIÀ INCONTRATI — NON RICADERCI
 --------------------------------------------------------------------------------
+- INIEZIONE DOPPIA = ID DOPPI = DATI LETTI DAL POSTO SBAGLIATO. Se una scheda
+  si aggiunge con insertAdjacentHTML all'avvio, e l'avvio può girare due volte,
+  l'agente si trova due schede identiche: scrive in una e il codice legge
+  l'altra. Sintomo tipico: "non ho riconosciuto nessuna riga" con la riga
+  scritta a video. Rimedi obbligatori: registro unico (chiave = schermata +
+  modulo) e letture sempre dentro la scheda del tasto premuto (this → closest).
 - Edit automatico che cancella mezzo file: controlla git diff --stat.
 - Test che usano win.isoLocal: i const non sono su window.
 - QR: una matrice diversa da python-qrcode può essere valida se si

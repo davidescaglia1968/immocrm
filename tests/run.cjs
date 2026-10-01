@@ -1162,6 +1162,74 @@ async function testFontiApp() {
   win.close();
 }
 
+
+/* ---------------------------------------------------------------- */
+/* 22) v10.6.5 — niente doppioni, lettura robusta                    */
+/* ---------------------------------------------------------------- */
+async function testNienteDoppioni() {
+  section('22. v10.6.5: schede una sola volta e letture a prova di doppione');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.render === 'function' && win.Fonti && win.Automazioni);
+  const p = win.document.getElementById('login-pass'); if (p) p.value = 'successo';
+  try { await win.doLogin(); } catch (e) { }
+  await waitUntil(() => win.document.getElementById('app-shell').style.display !== 'none').catch(() => { });
+
+  /* Mercato: una copia sola, anche disegnando più volte */
+  const conta = () => (win.document.getElementById('content').innerHTML.match(/Dati di mercato — quando si aggiornano/g) || []).length;
+  win.eval("activeSection='mercato';render()");
+  ok(conta() === 1, 'Mercato: la scheda compare UNA volta sola (' + conta() + ')');
+  win.eval("render()"); win.eval("render()");
+  ok(conta() === 1, 'Mercato: dopo tre disegni resta una copia (' + conta() + ')');
+  ok(win.document.querySelectorAll('#dm-testo').length === 1, 'Mercato: una sola casella "Righe copiate" nel documento');
+  ok(win.document.querySelectorAll('#dm-salva').length === 1, 'Mercato: un solo tasto "Aggiungi gli atti"');
+
+  /* doppia iniezione forzata a mano (era la causa del difetto) */
+  win.eval("iniettaFonti();iniettaFonti();iniettaAutomazioni();iniettaAutomazioni()");
+  win.eval("render()");
+  ok(conta() === 1, 'anche forzando l\'iniezione due volte la scheda resta una');
+
+  /* Da Fare: ogni scheda una volta */
+  win.eval("activeSection='da-fare';render()");
+  const hd = win.document.getElementById('content').innerHTML;
+  const quante = (re) => (hd.match(re) || []).length;
+  ok(quante(/Follow-up: chi non senti da troppo/g) <= 2, 'Da Fare: la scheda Follow-up non si moltiplica');
+  ok(quante(/Esporta backup adesso/g) <= 1, 'Da Fare: un solo avviso di backup');
+  ok(quante(/Dati di mercato da rinfrescare/g) <= 1, 'Da Fare: un solo avviso sui dati di mercato');
+
+  /* Le altre schermate non si duplicano */
+  ['marketing', 'statistiche', 'report-prop', 'promemoria'].forEach(sec => {
+    win.eval("activeSection='" + sec + "';render();render()");
+    const h = win.document.getElementById('content').innerHTML;
+    const n = (h.match(/class="card"/g) || []).length;
+    ok(n > 0 && n < 40, 'sezione ' + sec + ': nessuna moltiplicazione di schede (' + n + ' schede)');
+  });
+
+  /* Lettura robusta: esca con lo stesso nome messa prima delle schede */
+  win.eval("activeSection='mercato';render()");
+  const c = win.document.getElementById('content');
+  c.insertAdjacentHTML('afterbegin', '<div id="esca"><textarea id="dm-testo">riga spazzatura da non leggere</textarea><input id="dm-zona" value="Zona sbagliata"><div id="dm-preview"></div><button id="dm-salva"></button></div>');
+  const vera = c.querySelector('#dm-card #dm-testo');
+  ok(!!vera, 'la scheda vera ha i suoi campi dentro di sé');
+  vera.value = '03/2025 ; Residenziale ; 185.000,00 ; 118 mq ; A/2 ; C23 Centro storico';
+  c.querySelector('#dm-card #dm-zona').value = 'Centro storico';
+  win.document.getElementById('dm-leggi').click();
+  const prev = c.querySelector('#dm-card #dm-preview').innerHTML;
+  ok(/Ho letto 1 atti/.test(prev), 'col tasto premuto legge la casella DELLA SUA scheda, non un\'altra');
+  ok(!/spazzatura/.test(prev), 'la riga spazzatura dell\'esca viene ignorata');
+  ok(win.document.getElementById('esca').querySelector('#dm-testo').value === 'riga spazzatura da non leggere', 'l\'esca non è stata toccata dalla lettura');
+  const btn = c.querySelector('#dm-card #dm-salva');
+  ok(btn && btn.disabled === false, 'il tasto di conferma della scheda giusta si attiva');
+  btn.click();
+  const atti = win.DB.vendite.filter(v => String(v.fonte || '').indexOf('valori dichiarati') >= 0);
+  ok(atti.length === 1 && atti[0].prezzoVendita === 185000, 'l\'atto della sua scheda è entrato nel CRM (' + atti.length + ')');
+
+  /* Casella vuota: messaggio giusto, non "non ho riconosciuto" */
+  win.eval("activeSection='mercato';render()");
+  win.document.getElementById('dm-leggi').click();
+  ok(/è vuota/.test(win.document.getElementById('dm-preview').innerHTML), 'casella vuota: lo dice chiaramente invece di accusare la riga');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -1187,6 +1255,7 @@ async function testFontiApp() {
   try { await testAutomazioniApp(); } catch (e) { failed++; failures.push('automazioni-app: ' + e.message); console.log('  ❌ automazioni-app exception', e.message); }
   try { await testFonti(); } catch (e) { failed++; failures.push('fonti: ' + e.message); console.log('  ❌ fonti exception', e.message); }
   try { await testFontiApp(); } catch (e) { failed++; failures.push('fonti-app: ' + e.message); console.log('  ❌ fonti-app exception', e.message); }
+  try { await testNienteDoppioni(); } catch (e) { failed++; failures.push('doppioni: ' + e.message); console.log('  ❌ doppioni exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }
