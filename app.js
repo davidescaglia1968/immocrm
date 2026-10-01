@@ -1232,7 +1232,7 @@ ${syncCardHTML()}
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
 <div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div>
-<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.2</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<button class="btn btn-gold btn-sm" style="margin-bottom:10px" onclick="aggiornaAdesso()">🔄 Cerca aggiornamenti</button><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.3</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1352,7 +1352,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.6.2',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.3',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1577,7 +1577,7 @@ function avviaControlloAggiornamenti(){
   });
 }
 avviaControlloAggiornamenti();
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.2','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.3','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
@@ -1989,5 +1989,245 @@ function ripristinaCopiaPreAggiornamento(){
       setTimeout(function(){try{sicurezzaContatti()}catch(e){}},1500);
     }catch(e){console.warn('novità v10.6',e)}
   }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();
+})();
+
+/* ============================================================================
+   v10.6.3 — AUTOMAZIONI: marketing, follow-up, performance, report proprietari
+   Non sostituiscono le schermate esistenti: ne AGGIUNGONO una parte in cima.
+   Tutto calcolato sui dati già presenti. Nessuna libreria, nessun servizio.
+   ============================================================================ */
+
+/* ---------- 1) MARKETING: immobile nuovo → clienti giusti ---------- */
+function rigaMarketing(m,im){
+  const c=m.cliente;
+  const testo=Automazioni.testoProposta(DB,c,im);
+  const waLink=Automazioni.linkWhatsapp(c.telefono,testo);
+  const mailLink=Automazioni.linkEmail(c.email,'Nuovo immobile in '+(im.zona||''),testo);
+  let bottoni='';
+  if(waLink)bottoni+='<button class="btn btn-gold btn-xs" onclick="apriLink(\'' + waLink.replace(/'/g,'') + '\')" title="Manda su WhatsApp">💬</button>';
+  if(mailLink)bottoni+='<button class="btn btn-ghost btn-xs" onclick="apriLink(\'' + mailLink.replace(/'/g,'') + '\')" title="Scrivi email">📧</button>';
+  bottoni+='<button class="btn btn-ghost btn-xs" onclick="mostraTestoProposta(' + c.id + ',' + im.id + ')" title="Vedi e copia il messaggio">📄</button>';
+  bottoni+='<button class="btn btn-ghost btn-xs" onclick="svegliaPerImmobile(' + c.id + ',' + im.id + ')" title="Metti la sveglia di richiamo">⏰</button>';
+  bottoni+='<button class="btn btn-ghost btn-xs" onclick="vaiAContatto(' + c.id + ')" title="Apri la scheda">👤</button>';
+  const nome=esc((c.nome||'')+' '+(c.cognome||''));
+  const sotto=esc(c.telefono||'')+' · '+esc(c.stato||'');
+  const perche=m.motivi.map(esc).join(' · ');
+  return '<tr><td><b>'+nome+'</b><div style="font-size:10px;color:var(--text2)">'+sotto+'</div></td>'+
+    '<td><span class="badge '+(m.punteggio>=80?'badge-green':'')+'">'+m.punteggio+'%</span> '+
+    '<span style="font-size:11px;color:var(--text2)">'+perche+'</span></td>'+
+    '<td style="text-align:right;white-space:nowrap">'+bottoni+'</td></tr>';
+}
+function apriLink(url){
+  if(!url)return;
+  try{window.open(url,'_blank')}catch(e){try{location.href=url}catch(e2){showToast('Il browser ha bloccato il collegamento','error')}}
+}
+function htmlMarketingNuovo(){
+  if(!window.Automazioni)return'';
+  const disp=(DB.immobili||[]).filter(i=>i.stato==='disponibile'&&i.prezzo);
+  if(!disp.length)return'';
+  const im=disp.slice().sort((a,b)=>String(b.dataInserimento||'').localeCompare(String(a.dataInserimento||'')))[0];
+  const match=Automazioni.clientiPerImmobile(DB,im,{soglia:50});
+  const opzioni=disp.map(i=>'<option value="'+esc(i.id)+'"'+(String(i.id)===String(im.id)?' selected':'')+'>'+esc(i.titolo)+' · '+fmtEuroShort(i.prezzo)+' · '+esc(i.zona||i.citta||'')+'</option>').join('');
+  const corpo=match.length
+    ? '<div class="table-wrap"><table class="table"><thead><tr><th>Cliente</th><th>Perché</th><th></th></tr></thead><tbody>'+match.map(m=>rigaMarketing(m,im)).join('')+'</tbody></table></div>'
+    : '<div class="alert orange">Per ora nessun cliente corrisponde a questo immobile. Controlla che nei contatti siano scritti <b>budget</b>, <b>zona</b> e <b>tipologia</b> desiderati: è da lì che nasce l\'abbinamento.</div>';
+  return '<div class="card" style="border-color:rgba(201,169,110,.35)">'+
+    '<div class="card-title" style="font-size:17px">🎯 Immobile nuovo? Ecco chi avvisare</div>'+
+    '<div class="card-subtitle" style="margin-bottom:10px">Il CRM confronta l\'immobile con quello che cercano i tuoi clienti (budget, zona, tipologia) e ti prepara il messaggio. Niente parte da solo: decidi tu.</div>'+
+    '<div class="form-row-3"><div class="form-group"><label class="form-label">Immobile</label><select class="inp" id="mk-imm" onchange="render()">'+opzioni+'</select></div></div>'+
+    corpo+'</div>';
+}
+/* ---------- 2) FOLLOW-UP: chi non senti da troppo ---------- */
+function htmlFollowUp(){
+  if(!window.Automazioni)return'';
+  const lista=Automazioni.daRicontattare(DB,{adesso:new Date()});
+  if(!lista.length)return`<div class="card" style="border-color:rgba(34,197,94,.35)"><div class="card-title" style="color:var(--green)">✅ Follow-up: sei in regola</div><div class="card-subtitle">Nessun contatto o lead è rimasto indietro oltre il suo ritmo.</div></div>`;
+  const alte=lista.filter(x=>x.urgenza==='alta').length;
+  return `<div class="card" style="border-color:rgba(249,115,22,.4)">
+    <div class="row" style="justify-content:space-between"><div class="card-title" style="font-size:17px">🔔 Follow-up: ${lista.length} da riprendere</div>
+    ${alte?`<span class="badge" style="background:rgba(239,68,68,.25);color:var(--red)">${alte} urgenti</span>`:''}</div>
+    <div class="card-subtitle">Contatti e lead che hanno superato il loro ritmo di ricontatto. Il ritmo lo decide lo stato: caldo 7 giorni, tiepido 14, freddo 30; i lead 2-7 giorni secondo la fase.</div>
+    <div style="max-height:320px;overflow-y:auto;margin-top:8px">
+    ${lista.slice(0,25).map(x=>`<div class="row" style="gap:8px;padding:8px 0;border-bottom:1px solid var(--bg4)">
+      <div style="font-size:16px">${x.urgenza==='alta'?'🔴':x.urgenza==='media'?'🟠':'🟡'}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600">${esc(x.chi.nome||'')} ${esc(x.chi.cognome||'')}<span style="color:var(--text2);font-weight:400"> · ${x.tipo==='lead'?'lead':'contatto'}</span></div>
+        <div style="font-size:10px;color:var(--text2)">fermo da <b>${x.giorniSilenzio} giorni</b> (ritmo: ${x.soglia}) · ${esc(x.azione)}</div>
+      </div>
+      ${x.chi.telefono?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${String(x.chi.telefono).replace(/\D/g,'')}','_self')">📞</button>`:''}
+      <button class="btn btn-gold btn-xs" onclick="svegliaFollowUp(${JSON.stringify(x.chi.id)},${JSON.stringify(x.tipo)})" title="Metti la sveglia per domani">⏰</button>
+      <button class="btn btn-ghost btn-xs" onclick="${x.tipo==='lead'?'apriLead':'vaiAContatto'}(${JSON.stringify(x.chi.id)})" title="Apri">👤</button>
+    </div>`).join('')}
+    </div>
+  </div>`;
+}
+function svegliaFollowUp(id,tipo){
+  if(!window.Promemoria)return;
+  let chi=null,sezione='contatti';
+  if(tipo==='lead'){chi=(DB.leads||[]).find(x=>String(x.id)===String(id));sezione='leads'}
+  else{chi=(DB.clienti||[]).find(x=>String(x.id)===String(id))}
+  if(!chi){showToast('Non trovato','error');return}
+  Promemoria.crea(DB,{clienteId:tipo==='lead'?'':chi.id,nome:[chi.nome,chi.cognome].filter(Boolean).join(' '),telefono:chi.telefono||'',data:isoLocal(addDays(new Date(),1)),ora:'09:00',nota:'Follow-up: '+Automazioni.regolaFollowUp(chi.stato).azione,tipo:'richiamo'});
+  save();showToast('⏰ Sveglia messa per domani alle 09:00');
+}
+
+/* ---------- 3) PERFORMANCE ---------- */
+function htmlPerformance(){
+  if(!window.Automazioni)return'';
+  const m=Automazioni.metriche(DB,new Date());
+  const maxFonte=Math.max(1,...m.fonti.map(f=>f.totale));
+  return `<div class="card"><div class="card-title" style="font-size:17px">📈 Performance dell'attività</div>
+    <div class="card-subtitle">Tutto calcolato dai tuoi dati. Serve a capire dove spendere il tempo.</div>
+    <div class="stats-grid" style="margin-top:10px">
+      <div class="stat-box"><div class="stat-num">${m.trattativeAperte}</div><div class="stat-lbl">trattative aperte</div></div>
+      <div class="stat-box"><div class="stat-num">${fmtEuroShort(m.provvigioniPreviste)}</div><div class="stat-lbl">provvigioni previste</div></div>
+      <div class="stat-box"><div class="stat-num">${fmtEuroShort(m.incassato)}</div><div class="stat-lbl">incassato</div></div>
+      <div class="stat-box"><div class="stat-num">${fmtEuroShort(m.daIncassare)}</div><div class="stat-lbl">da incassare</div></div>
+      <div class="stat-box"><div class="stat-num">${m.tempoMedioVendita==null?'—':m.tempoMedioVendita+' gg'}</div><div class="stat-lbl">tempo medio di vendita</div></div>
+      <div class="stat-box"><div class="stat-num">${m.scontoMedio==null?'—':m.scontoMedio+'%'}</div><div class="stat-lbl">sconto medio chiesto/venduto</div></div>
+      <div class="stat-box"><div class="stat-num">${m.invenduti90}</div><div class="stat-lbl">invenduti da oltre 90 gg</div></div>
+      <div class="stat-box"><div class="stat-num">${m.senzaVisite}</div><div class="stat-lbl">disponibili senza visite</div></div>
+    </div></div>
+    <div class="grid2">
+      <div class="card"><div class="card-title">📍 Da dove arrivano i clienti</div>
+        ${m.fonti.length?m.fonti.slice(0,8).map(f=>`<div style="margin:8px 0">
+          <div class="row" style="justify-content:space-between"><div style="font-size:12px">${esc(f.fonte)}</div>
+          <div style="font-size:11px;color:var(--text2)">${f.totale} contatti · <b class="${f.chiusi?'text-green':''}">${f.chiusi} acquisiti</b> · ${f.tasso}%</div></div>
+          <div class="progress" style="height:6px"><div class="progress-bar" style="width:${Math.round(f.totale/maxFonte*100)}%"></div></div>
+        </div>`).join(''):'<div class="empty-state text-sm">Nessun contatto con la fonte indicata.</div>'}
+      </div>
+      <div class="card"><div class="card-title">🤝 Passaparola: chi ti porta clienti</div>
+        ${m.passaparola.length?m.passaparola.slice(0,8).map(x=>`<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--bg4)">
+          <div style="font-size:12px">${esc(x.chi)}</div><div style="font-size:11px;color:var(--text2)">${x.quanti} clienti · ${x.chiusi} acquisiti</div></div>`).join(''):'<div class="empty-state text-sm">Nessun cliente segnato come passaparola o referral. Nella scheda contatto trovi il campo <b>Portato da</b>: scrivilo e questa classifica si riempie da sola.</div>'}
+        ${m.passaparola.length?'<div class="login-hint" style="margin-top:8px">Ringrazia chi ti porta clienti: è la fonte che rende di più.</div>':''}
+      </div>
+    </div>`;
+}
+
+/* ---------- 4) REPORT PROPRIETARI ---------- */
+function htmlReportProprietario(){
+  if(!window.Automazioni)return'';
+  const lista=(DB.immobili||[]).filter(i=>i.stato!=='venduto');
+  if(!lista.length)return'';
+  const sel=(typeof window._repPropSel!=='undefined'&&lista.some(i=>String(i.id)===String(window._repPropSel)))?window._repPropSel:lista[0].id;
+  const im=lista.find(i=>String(i.id)===String(sel))||lista[0];
+  const r=Automazioni.reportProprietario(DB,im,new Date());
+  const testo=Automazioni.testoReport(DB,im,new Date());
+  return `<div class="card" style="border-color:rgba(201,169,110,.35)">
+    <div class="card-title" style="font-size:17px">📤 Rapporto per il proprietario</div>
+    <div class="card-subtitle" style="margin-bottom:10px">Quello che il venditore vuole sapere: da quanto è in vendita, quante visite, come sei posizionato, cosa fare adesso. Pronto da mandare.</div>
+    <select class="inp" id="rp-imm" onchange="window._repPropSel=this.value;render()">${lista.map(i=>`<option value="${i.id}" ${String(i.id)===String(im.id)?'selected':''}>${esc(i.titolo)} · ${fmtEuroShort(i.prezzo)} · ${esc(i.zona||i.citta||'')}</option>`).join('')}</select>
+    <div class="stats-grid" style="margin-top:10px">
+      <div class="stat-box"><div class="stat-num">${r.giorniInVendita==null?'—':r.giorniInVendita}</div><div class="stat-lbl">giorni in vendita</div></div>
+      <div class="stat-box"><div class="stat-num">${r.visite}</div><div class="stat-lbl">visite</div></div>
+      <div class="stat-box"><div class="stat-num">${r.mqMio?fmtEuro(r.mqMio):'—'}</div><div class="stat-lbl">il tuo €/mq</div></div>
+      <div class="stat-box"><div class="stat-num">${r.mqZona?fmtEuro(r.mqZona):'—'}</div><div class="stat-lbl">media in zona</div></div>
+    </div>
+    ${r.posizionamento?`<div class="alert ${r.posizionamento==='sopra'?'orange':r.posizionamento==='sotto'?'green':''}">📍 Rispetto ai ${r.annunciInZona} annunci simili in zona il tuo prezzo è <b>${r.posizionamento}</b> la media.</div>`:''}
+    ${r.omi?`<div class="login-hint">Fascia OMI di riferimento: <b>${fmtEuro(r.omi.mqMin)}–${fmtEuro(r.omi.mqMax)}/mq</b>${r.omi.semestre?' (semestre '+esc(r.omi.semestre)+')':''} — Agenzia Entrate, non è il prezzo della casa.</div>`:''}
+    ${r.consigli.length?`<div class="card" style="background:var(--bg2);margin-top:10px"><div class="card-title" style="font-size:13px">💡 Cosa fare adesso</div><ul class="strategia-list">${r.consigli.map(c=>`<li>${esc(c)}</li>`).join('')}</ul></div>`:''}
+    <div class="row-tight" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+      <button class="btn btn-primary" onclick="apriReportTesto(${im.id})">📄 Leggi e copia il rapporto</button>
+      <button class="btn btn-gold" onclick="stampaReportProprietario(${im.id})">🖨️ Stampa / PDF</button>
+      <button class="btn btn-ghost" onclick="copiaTestoDa('${encodeURIComponent(testo).slice(0,1800)}')">📋 Copia testo</button>
+      <button class="btn btn-ghost" onclick="svegliaProprietario(${im.id})">⏰ Sveglia per richiamare il proprietario</button>
+    </div>
+  </div>`;
+}
+function apriReportTesto(immId){
+  const im=(DB.immobili||[]).find(x=>String(x.id)===String(immId));if(!im)return;
+  const testo=Automazioni.testoReport(DB,im,new Date());
+  document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" onclick="closeModal(event,this)"><div class="modal modal-lg" onclick="event.stopPropagation()">
+    <h2>📄 Rapporto — ${esc(im.titolo||'')}</h2>
+    <textarea class="inp" rows="16" id="rp-testo">${esc(testo)}</textarea>
+    <div class="row-tight" style="margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gold" onclick="copiaTesto('rp-testo')">📋 Copia</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Chiudi</button>
+    </div>
+    <div class="login-hint" style="margin-top:8px">Puoi correggerlo come vuoi: resta tuo. Nessun dato esce dal CRM da solo.</div>
+  </div></div>`);
+}
+function copiaTestoDa(cod){
+  const testo=decodeURIComponent(cod||'');
+  try{if(navigator.clipboard){navigator.clipboard.writeText(testo);showToast('📋 Rapporto copiato')}else{showToast('Seleziona e copia dal riquadro','info')}}
+  catch(e){showToast('Seleziona e copia dal riquadro','info')}
+}
+function stampaReportProprietario(immId){
+  const im=(DB.immobili||[]).find(x=>String(x.id)===String(immId));if(!im)return;
+  const testo=Automazioni.testoReport(DB,im,new Date());
+  const w=window.open('','_blank');
+  if(!w){showToast('Il browser ha bloccato la finestra','error');return}
+  const s=(DB.settings||{});
+  w.document.write('<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Rapporto '+esc(im.titolo||'')+'</title>'+
+  '<style>body{font-family:Georgia,serif;max-width:720px;margin:32px auto;color:#111;line-height:1.6;white-space:pre-wrap}h1{font-size:19px;border-bottom:1px solid #999;padding-bottom:6px}</style></head><body>'+
+  '<h1>'+(s.agenziaNome||'Immobiliare')+' — '+(s.agente||'')+'</h1>'+esc(testo)+'</body></html>');
+  w.document.close();setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
+function svegliaProprietario(immId){
+  const im=(DB.immobili||[]).find(x=>String(x.id)===String(immId));if(!im||!window.Promemoria)return;
+  const prop=im.proprietarioId?((DB.clienti||[]).find(c=>String(c.id)===String(im.proprietarioId))||null):null;
+  Promemoria.crea(DB,{clienteId:prop?prop.id:'',nome:prop?[prop.nome,prop.cognome].filter(Boolean).join(' '):('Proprietario di '+(im.titolo||'')),telefono:prop?prop.telefono:'',data:isoLocal(addDays(new Date(),3)),ora:'09:00',nota:'Mandare il rapporto di '+(im.titolo||''),tipo:'richiamo'});
+  save();showToast('⏰ Sveglia messa fra 3 giorni: mandare il rapporto');
+}
+
+/* ---------- 5) BACKUP: mai più dati persi ---------- */
+function htmlBackupPromemoria(){
+  if(!window.Automazioni)return'';
+  const b=Automazioni.serveBackup(DB,new Date());
+  if(!b.serve)return'';
+  return `<div class="card" style="border-color:rgba(239,68,68,.45)"><div class="card-title" style="color:var(--red)">📥 ${b.motivo}</div>
+    <div class="card-subtitle" style="margin-bottom:8px">Un backup è un file con tutti i tuoi dati. Tienilo sul computer o su una chiavetta: se qualcosa va storto, si rimette tutto dentro in un minuto.</div>
+    <button class="btn btn-primary" onclick="esportaBackup()">📥 Esporta backup adesso</button></div>`;
+}
+
+/* ---------- 6) collegamento alle schermate ---------- */
+function iniettaAutomazioni(){
+  try{
+    if(!window.Automazioni)return;
+    /* Marketing: in cima alla schermata Marketing */
+    const _mk=renderMarketing;renderMarketing=function(c){_mk.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlMarketingNuovo())}catch(e){}};
+    /* Statistiche: performance in cima */
+    const _st=renderStatistiche;renderStatistiche=function(c){_st.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlPerformance())}catch(e){}};
+    /* Report proprietari: rapporto in cima */
+    const _rp=renderReportProp;renderReportProp=function(c){_rp.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlReportProprietario())}catch(e){}};
+    /* Da Fare Oggi: follow-up + promemoria backup in cima */
+    const _df=renderDaFare;renderDaFare=function(c){_df.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlBackupPromemoria()+htmlFollowUp())}catch(e){}};
+    /* Promemoria: avviso backup in cima */
+    const _pr=renderPromemoria;renderPromemoria=function(c){_pr.apply(null,arguments);try{const box=document.getElementById('content');if(box)box.insertAdjacentHTML('afterbegin',htmlBackupPromemoria())}catch(e){}};
+    /* la mappa delle sezioni deve puntare alle versioni nuove */
+    if(typeof RENDERERS!=='undefined'){
+      RENDERERS.marketing=renderMarketing;RENDERERS.statistiche=renderStatistiche;
+      RENDERERS['report-prop']=renderReportProp;RENDERERS['da-fare']=renderDaFare;
+      RENDERERS.promemoria=renderPromemoria;
+    }
+    /* registra la data dell'export, per il promemoria del backup */
+    const _exp=esportaBackup;esportaBackup=function(){const r=_exp.apply(null,arguments);try{Automazioni.registraExport(DB,new Date());save()}catch(e){}return r};
+    /* "Portato da": campo passaparola nella scheda contatto */
+    const _inj=iniettaPromemoriaInScheda;
+    iniettaPromemoriaInScheda=function(id){_inj.apply(null,arguments);try{iniettaPassaparola(id)}catch(e){}};
+  }catch(e){console.warn('automazioni',e)}
+}
+function iniettaPassaparola(id){
+  const box=document.getElementById('box-promemoria');
+  if(!box||!id)return;
+  const c=(DB.clienti||[]).find(x=>String(x.id)===String(id));
+  if(!c)return;
+  const t=document.createElement('div');
+  t.style.cssText='margin-top:12px;border-top:1px solid var(--border);padding-top:12px';
+  t.innerHTML=`<div class="card-title" style="margin-bottom:6px">🤝 Passaparola</div>
+    <div class="login-hint" style="margin-bottom:6px">Chi ti ha portato questo cliente? Scrivendolo, la classifica del passaparola si riempie da sola.</div>
+    <div class="row-tight"><input class="inp" id="pp-da" placeholder="es. Anna Bianchi" value="${esc(c.portatoDa||'')}" style="max-width:260px">
+    <button class="btn btn-gold btn-xs" onclick="salvaPassaparola(${id})">Salva</button></div>`;
+  box.parentNode.insertBefore(t,box);
+}
+function salvaPassaparola(id){
+  const c=(DB.clienti||[]).find(x=>String(x.id)===String(id));
+  const el=document.getElementById('pp-da');if(!c||!el)return;
+  c.portatoDa=el.value.trim();c.updatedAt=Date.now();
+  save();showToast('🤝 Salvato: '+(c.portatoDa||'nessuno'));
+}
+(function initAutomazioni(){
+  function avvia(){try{iniettaAutomazioni();setTimeout(()=>{try{iniettaAutomazioni()}catch(e){}},0)}catch(e){}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();
 })();

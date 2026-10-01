@@ -304,6 +304,7 @@ function makeWindow(url) {
     .replace(/<script src="sync\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'sync.js'), 'utf8') + '<\/script>')
     .replace(/<script src="promemoria\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'promemoria.js'), 'utf8') + '<\/script>')
     .replace(/<script src="recupero-dati\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'recupero-dati.js'), 'utf8') + '<\/script>')
+    .replace(/<script src="automazioni\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'automazioni.js'), 'utf8') + '<\/script>')
     .replace(/<script src="app\.js"[^>]*><\/script>/, '<script>' + fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8') + '<\/script>');
   const vc = new VirtualConsole();
   vc.on('jsdomError', e => { if (!/Not implemented/.test((e && e.message) || '')) console.error('jsdom:', e && e.message); });
@@ -924,6 +925,118 @@ async function testRecupero() {
   win.close();
 }
 
+
+/* ---------------------------------------------------------------- */
+/* 18) v10.6.3 — automazioni: marketing, follow-up, performance, report */
+/* ---------------------------------------------------------------- */
+async function testAutomazioni() {
+  section('18. v10.6.3: automazioni (marketing, follow-up, performance, report)');
+  const A = require(path.join(ROOT, 'automazioni.js'));
+  const db = {
+    settings: { agente: 'Scaglia Davide', agenziaNome: 'Immobiliare Scaglia', provvigione: 3 },
+    clienti: [
+      { id: 1, nome: 'Mario', cognome: 'Rossi', tipo: 'acquirente', stato: 'caldo', budgetMin: 150000, budgetMax: 200000, zonaDesiderata: 'centro storico', comuneDesiderato: 'Piacenza', tipologiaDesiderata: 'trilocale', telefono: '3331112222', fonte: 'Referral', portatoDa: 'Anna Bianchi', ultimoContatto: '2026-08-01' },
+      { id: 2, nome: 'Anna', cognome: 'Bianchi', tipo: 'acquirente', stato: 'tiepido', budgetMax: 130000, ultimoContatto: '2026-09-25' },
+      { id: 3, nome: 'Sara', cognome: 'Neri', tipo: 'acquirente', stato: 'chiuso', ultimoContatto: '2026-01-01' }
+    ],
+    leads: [{ id: 9, nome: 'Paolo Gialli', stato: 'Nuovo', ultimoContatto: '2026-09-20' }],
+    immobili: [{ id: 10, titolo: 'Trilocale centro', tipo: 'trilocale', zona: 'Centro Storico', citta: 'Piacenza', prezzo: 185000, superficie: 95, locali: 3, stato: 'disponibile', visite: 0, dataInserimento: '2026-04-01', prezzoIniziale: 210000 }],
+    trattative: [{ id: 20, immobileId: 10, prezzoOfferto: 180000, provvigione: 3, fase: 'trattativa' }],
+    mandati: [{ id: 30, immobileId: 10, dataFirma: '2026-05-01' }],
+    fatture: [{ id: 40, totale: 3000, stato: 'incassata' }],
+    vendite: [{ id: 50, immobileId: 10, prezzoPubblicato: 190000, prezzoVendita: 178000, superficieTotale: 95, dataVendita: '2026-06-01' }],
+    eventi: [{ id: 60, contattoId: 1, tipo: 'chiamata', data: '2026-09-20' }],
+    zoneOMI: [{ zona: 'Centro storico', mqMin: 1900, mqMax: 2900, semestre: '2025-S2' }]
+  };
+  const adesso = new Date(2026, 9, 1);
+  const im = db.immobili[0];
+
+  /* MARKETING */
+  const m = A.clientiPerImmobile(db, im);
+  ok(m.length >= 1 && m[0].cliente.id === 1, 'marketing: propone il cliente giusto per l\'immobile');
+  ok(m[0].punteggio >= 80, 'marketing: punteggio alto quando budget, zona e tipologia combaciano (' + m[0].punteggio + ')');
+  ok(!m.some(x => x.cliente.id === 3), 'marketing: il cliente chiuso non viene proposto');
+  ok(m[0].motivi.some(x => /budget/i.test(x)), 'marketing: dice PERCHÉ lo propone (budget)');
+  ok(A.linkWhatsapp('3331112222', 'x').indexOf('wa.me/393331112222') >= 0, 'marketing: link WhatsApp pronto, con prefisso 39');
+  ok(A.testoProposta(db, db.clienti[0], im).indexOf('Scaglia Davide') >= 0, 'marketing: il messaggio è firmato dall\'agente');
+
+  /* FOLLOW-UP */
+  const f = A.daRicontattare(db, { adesso });
+  ok(f.length >= 2, 'follow-up: trova chi è rimasto indietro (' + f.length + ')');
+  const mario = f.find(x => x.chi && x.chi.id === 1);
+  ok(!!mario && mario.giorniSilenzio === 11 && mario.soglia === 7, 'follow-up: cliente caldo, scatta dopo 7 giorni (ne ha 11)');
+  ok(!f.some(x => x.chi && x.chi.id === 2), 'follow-up: il tiepido sentito 6 giorni fa NON viene disturbato');
+  ok(!f.some(x => x.chi && x.chi.id === 3), 'follow-up: il contatto chiuso è escluso');
+  ok(f.some(x => x.tipo === 'lead'), 'follow-up: anche i lead fermi da troppo finiscono in lista');
+  ok(A.regolaFollowUp('caldo').giorni === 7 && A.regolaFollowUp('Nuovo').giorni === 2, 'follow-up: ritmo diverso per temperatura cliente e fase lead');
+  ok(A.regolaFollowUp('sconosciuto').giorni === 14, 'follow-up: valore sconosciuto → ritmo prudente');
+
+  /* PERFORMANCE */
+  const p = A.metriche(db, adesso);
+  ok(p.trattativeAperte === 1, 'performance: conta le trattative aperte');
+  ok(p.provvigioniPreviste === Math.round(180000 * 0.03), 'performance: provvigioni previste sul prezzo offerto');
+  ok(p.incassato === 3000, 'performance: incassato');
+  ok(p.tempoMedioVendita === 61, 'performance: tempo medio di vendita (61 giorni)');
+  ok(p.scontoMedio > 5 && p.scontoMedio < 7, 'performance: sconto medio chiesto/venduto');
+  ok(p.invenduti90 >= 1 && p.senzaVisite >= 1, 'performance: segnala invenduti da oltre 90 giorni e senza visite');
+  ok(p.passaparola.length >= 1 && p.passaparola[0].chi === 'Anna Bianchi', 'performance: classifica del passaparola');
+
+  /* REPORT PROPRIETARI */
+  const r = A.reportProprietario(db, im, adesso);
+  ok(r.giorniInVendita === 183, 'report: conta i giorni in vendita dal 01/04 (' + r.giorniInVendita + ')');
+  ok(r.consigli.length >= 1, 'report: dà un consiglio concreto quando non ci sono visite');
+  ok(r.giorniMandatoRimanenti !== null, 'report: calcola la scadenza del mandato');
+  const testo = A.testoReport(db, im, adesso);
+  ok(/Non è una perizia/.test(testo), 'report: scritto che non è una perizia');
+  ok(/visite/i.test(testo), 'report: contiene le visite');
+
+  /* BACKUP */
+  ok(A.serveBackup({ settings: {} }, adesso).serve === true, 'backup: avvisa se non hai mai esportato');
+  ok(A.serveBackup({ settings: { ultimoExport: '2026-09-28' } }, adesso).serve === false, 'backup: nessun avviso se è recente');
+}
+
+async function testAutomazioniApp() {
+  section('19. v10.6.3: le automazioni dentro l\'app (jsdom)');
+  const win = makeWindow();
+  await waitUntil(() => win.DB && typeof win.render === 'function' && win.Automazioni);
+  const p = win.document.getElementById('login-pass'); if (p) p.value = 'successo';
+  try { await win.doLogin(); } catch (e) { }
+  await waitUntil(() => win.document.getElementById('app-shell').style.display !== 'none').catch(() => { });
+  const oggi = new Date();
+  const iso = d => d.toISOString().slice(0, 10);
+  win.DB.clienti.push({ id: 801, nome: 'Mario', cognome: 'Prova', tipo: 'acquirente', stato: 'caldo', budgetMin: 150000, budgetMax: 200000, zonaDesiderata: 'Centro Storico', tipologiaDesiderata: 'trilocale', telefono: '3331112222', ultimoContatto: iso(new Date(oggi.getTime() - 40 * 86400000)), updatedAt: 1 });
+  win.DB.immobili.push({ id: 802, titolo: 'Trilocale prova', tipo: 'trilocale', zona: 'Centro Storico', citta: 'Piacenza', prezzo: 185000, superficie: 95, locali: 3, stato: 'disponibile', visite: 0, dataInserimento: iso(new Date(oggi.getTime() - 200 * 86400000)), updatedAt: 1 });
+  win.save();
+
+  win.eval("activeSection='marketing';render()");
+  let html1 = win.document.getElementById('content').innerHTML;
+  ok(/Immobile nuovo\? Ecco chi avvisare/.test(html1), 'Marketing: compare il riquadro "chi avvisare"');
+  ok(/Mario Prova/.test(html1), 'Marketing: propone il cliente giusto');
+
+  win.eval("activeSection='da-fare';render()");
+  let html2 = win.document.getElementById('content').innerHTML;
+  ok(/Follow-up/.test(html2), 'Da Fare: compare il riquadro Follow-up');
+  ok(/Mario Prova/.test(html2), 'Da Fare: il contatto fermo da 40 giorni è segnalato');
+  ok(/Esporta backup adesso|Ultimo backup|Non hai mai esportato/.test(html2), 'Da Fare: avvisa di esportare il backup');
+
+  win.eval("activeSection='statistiche';render()");
+  let html3 = win.document.getElementById('content').innerHTML;
+  ok(/Performance dell/.test(html3), 'Statistiche: compare il riquadro Performance');
+  ok(/passaparola/i.test(html3), 'Statistiche: c\'è la classifica del passaparola');
+
+  win.eval("activeSection='report-prop';render()");
+  let html4 = win.document.getElementById('content').innerHTML;
+  ok(/Rapporto per il proprietario/.test(html4), 'Report Proprietari: compare il rapporto pronto');
+  ok(/giorni in vendita/.test(html4), 'Report Proprietari: mostra i giorni in vendita');
+
+  /* il tasto "Esporta backup" registra la data, così l'avviso sparisce */
+  win.eval("activeSection='da-fare';render()");
+  win.Automazioni.registraExport(win.DB, new Date()); win.save();
+  win.eval("render()");
+  ok(!/Esporta backup adesso/.test(win.document.getElementById('content').innerHTML), 'dopo il backup l\'avviso sparisce');
+  win.close();
+}
+
 (async () => {
   console.log('ImmoCRM Pro — suite di verifica\n================================');
   try { await testCrypto(); } catch (e) { failed++; failures.push('crypto: ' + e.message); console.log('  ❌ crypto exception', e.message); }
@@ -945,6 +1058,8 @@ async function testRecupero() {
   try { await testAppV106(); } catch (e) { failed++; failures.push('app106: ' + e.message); console.log('  ❌ app106 exception', e.message); }
   try { await testProtezioneVuoto(); } catch (e) { failed++; failures.push('protezione-vuoto: ' + e.message); console.log('  ❌ protezione-vuoto exception', e.message); }
   try { await testRecupero(); } catch (e) { failed++; failures.push('recupero: ' + e.message); console.log('  ❌ recupero exception', e.message); }
+  try { await testAutomazioni(); } catch (e) { failed++; failures.push('automazioni: ' + e.message); console.log('  ❌ automazioni exception', e.message); }
+  try { await testAutomazioniApp(); } catch (e) { failed++; failures.push('automazioni-app: ' + e.message); console.log('  ❌ automazioni-app exception', e.message); }
   console.log('\n================================');
   console.log('PASSATI: ' + passed + '   FALLITI: ' + failed);
   if (failures.length) { console.log('Falliti:'); failures.forEach(f => console.log(' - ' + f)); }
