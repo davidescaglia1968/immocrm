@@ -1,5 +1,5 @@
 ================================================================================
-PROMPT PER AGENTE — ImmoCRM Pro  (v2.15 · 01/10/2026 · sito live v10.6.0)
+PROMPT PER AGENTE — ImmoCRM Pro  (v2.16 · 01/10/2026 · sito live v10.6.3)
 ================================================================================
 
 COME SI USA
@@ -310,6 +310,28 @@ Hosting    : GitHub Pages → https://davidescaglia1968.github.io/immocrm/
 Versione LIVE verificata il 30/09/2026: v10.5.12
              (titolo e login: "v10.5.12"). Cache service worker:
              immocrm-shell-v17.
+v10.6.3 (01/10/2026) — stessa sessione, AUTOMAZIONI:
+             file NUOVO automazioni.js. Quattro cose, tutte sui dati già nel CRM:
+             1) Marketing: immobile nuovo → clienti da avvisare con punteggio
+                spiegato (budget, zona, tipologia), messaggio pronto, WhatsApp
+                ed email con un tasto. Soglia 50/100.
+             2) Follow-up: ritmi per TEMPERATURA del contatto (caldo 7 gg,
+                tiepido 14, freddo 30) e per FASE del lead (Nuovo 2, Contattato 7,
+                Trattativa 2...). Sta in cima a "Da Fare Oggi", con sveglia in un clic.
+             3) Performance (in Statistiche): provvigioni previste, incassato,
+                da incassare, tempo medio di vendita, sconto medio chiesto/venduto,
+                invenduti >90 gg, conversioni per fonte, classifica passaparola
+                (campo nuovo "portatoDa" nella scheda contatto).
+             4) Report proprietari: giorni in vendita, visite, €/mq contro la zona,
+                posizionamento, fascia OMI, consigli, testo copiabile e stampabile.
+             Più: promemoria backup se non esporti da 7 giorni.
+             Test: 226/226.
+
+v10.6.2 (01/10/2026) — stessa sessione:
+             tasto "Aggiorna ora": l'app avvisa da sola quando c'è una versione
+             nuova (barra in basso) e Impostazioni ha "Cerca aggiornamenti".
+             Non serve più Ctrl+F5. Cache: immocrm-shell-v20.
+
 v10.6.1 (01/10/2026) — stessa sessione:
              recupero dati: file NUOVO recupero-dati.js + tasto
              "🆘 Recupera i miei contatti" in Impostazioni → Protezione dati.
@@ -325,7 +347,7 @@ v10.6.0 (01/10/2026) — DA QUESTA SESSIONE:
              "⏰ Promemoria", tasti veri al posto di logRapido/deleteEvento,
              tasto 👤 che apre la scheda contatto dalle altre schermate,
              valutatore: riga della fascia onesta e affidabilità legata ai
-             venduti veri. Cache service worker: immocrm-shell-v19 (v10.6.1).
+             venduti veri. Cache service worker: immocrm-shell-v21 (v10.6.3).
              Guida per Davide: GUIDA-SVEGLIE.txt (in italiano semplice).
              Pianificatore facoltativo: .github/workflows/sveglie.yml.
              Login: icona occhio mostra/nasconde il testo nel campo solo
@@ -400,7 +422,7 @@ COMANDI GITHUB — quando pubblichi, fai TUTTO tu. Niente ZIP, niente
      deve premere Ctrl+F5. Non chiedergli di unire o di caricare file.
 
 Stack      : PWA statica, SENZA build e SENZA librerie esterne.
-  - index.html, style.css, app.js, sync.js, promemoria.js (v10.6), recupero-dati.js (v10.6.1), sw.js
+  - index.html, style.css, app.js, sync.js, promemoria.js (v10.6), recupero-dati.js (v10.6.1), automazioni.js (v10.6.3), sw.js
   - manifest.webmanifest, icons/
   - LEGGIMI-CARICA-SU-GITHUB.txt
   - questo file
@@ -571,6 +593,16 @@ f) v10.5 — tre blocchi, non romperli:
    rubrica aggiunge il tasto 👤 che apre la scheda (vaiAContatto).
    Non è un secondo archivio e non tocca i dati: è solo un tasto in più.
    Se una sezione non mostra i nomi, il tasto non compare: è normale.
+
+   AUTOMAZIONI (v10.6.3). automazioni.js calcola tutto in locale sui dati
+   esistenti: nessun servizio esterno, nessun dato che esce. I riquadri si
+   aggiungono in cima alle schermate esistenti (Marketing, Statistiche,
+   Report Proprietari, Da Fare Oggi) con dei "ganci" sulle funzioni di
+   disegno: le schermate originali non sono state toccate. Il campo
+   clienti.portatoDa serve alla classifica del passaparola.
+   Attenzione ai template: non annidare più di 2 livelli di `${ }`, il
+   motore del browser dà "Missing } in template expression". Costruire le
+   righe con funzioni che restituiscono stringhe (vedi rigaMarketing).
 
    STIMA A TRE RIGHE (v10.6). L'affidabilità si calcola SOLO dai venduti
    veri in zona (quanti e quanto recenti): 0 venduti → 15%, mai oltre 92%.
