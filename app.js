@@ -99,7 +99,7 @@ function saveAuth(a){try{localStorage.setItem(AUTH_KEY,JSON.stringify(a))}catch(
 // v10.3: verifica la password contro un hash PBKDF2 condiviso (viene dal codice dispositivo)
 async function verificaConHash(rec,p){const h=await pbkdf2(p,rec.salt,rec.iter||PBK_ITER);return !!h&&h===rec.hash}
 function initDB(){
-['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture','vendite'].forEach(k=>{if(!DB[k])DB[k]=[]});
+['clienti','immobili','trattative','appuntamenti','attivita','documenti','eventi','chiamate','mandati','openhouses','leads','fatture','vendite','promemoria'].forEach(k=>{if(!DB[k])DB[k]=[]});
 if(!DB.obiettivi)DB.obiettivi={incarichiSettimana:1,incarichiMese:4,chiamateGiorno:10};
 if(!DB.regia)DB.regia={data:today(),fatte:[],saltate:[]};
 if(!DB.actionPlans)DB.actionPlans=[];
@@ -473,6 +473,9 @@ const push=(tipo,icon,id,titolo,dettaglio,data,sezione,soloFutura)=>{const gg=gi
 (DB.fatture||[]).forEach(f=>{if(f.stato!=='incassata'&&f.scadenza)push('Fattura','🧾',f.id,(f.numero||'Fattura')+' · '+fmtEuroShort(f.totale),(f.cliente?f.cliente+' · ':'')+'da incassare',f.scadenza,'fatture',false)});
 (DB.openhouses||[]).forEach(oh=>{if(oh.data)push('Open House','🏡',oh.id,oh.titolo,(oh.oraInizio?oh.oraInizio+' · ':'')+'evento',oh.data,'openhouse',true)});
 (DB.mandati||[]).forEach(m=>{if(m.stato==='annullato'||m.stato==='risolto')return;const esplicita=m.scadenza||m.dataScadenza;const base=m.dataFirma||m.dataInizio;const d=esplicita||(base?isoLocal(addDays(new Date(String(base).slice(0,10)+'T00:00:00'),90)):'');if(d)push('Mandato','✍️',m.id,m.immobileNome||'Mandato',(m.nomeVenditore||'')+(esplicita?'':' · incarico 90 gg'),d,'mandati',false)});
+/* Sveglie dei richiami: hanno anche l'ORA, quindi entrano nella campanella
+   con l'orario in chiaro. Restano separate dai richiami senza ora. */
+(DB.promemoria||[]).forEach(p=>{if(p.stato!=='attivo'||!p.data)return;const chi=(p.nome||'').trim()||('cliente '+(p.clienteId||''));push('Sveglia','⏰',p.id,chi,'richiamo alle '+(p.ora||'09:00')+(p.telefono?' · '+p.telefono:''),p.data,'promemoria',false)});
 return out.sort((a,b)=>(a.gg-b.gg)||a.data.localeCompare(b.data)||a.tipo.localeCompare(b.tipo))}
 function allarmiScadenze(){return raccogliScadenze().filter(it=>it.livello!==null)}
 function scaduteOra(){return raccogliScadenze().filter(it=>it.gg<0)}
@@ -1031,7 +1034,7 @@ function vtStep5(){const d=V.dati;return`<div class="card"><h2 style="color:var(
 function vtStep6(){const d=V.dati;return`<div class="card"><h2 style="color:var(--gold);font-family:var(--font-serif)">🏙️ Mercato</h2><div class="form-grid"><div class="form-group"><label>Trend zona</label><select class="form-control" onchange="vtd('trendZona',this.value)">${['crescente','stabile','calo'].map(x=>`<option value="${x}" ${d.trendZona===x?'selected':''}>${x}</option>`).join('')}</select></div><div class="form-group"><label>Prezzo richiesto €</label><input type="number" class="form-control" value="${d.prezzoRichiesto||''}" onchange="vtd('prezzoRichiesto',parseFloat(this.value)||0)"></div><div class="form-group"><label>Giorni mercato</label><input type="number" class="form-control" value="${d.giorniMercato||0}" onchange="vtd('giorniMercato',parseInt(this.value)||0)"></div></div></div>`}
 function vtCalcola(){const d=V.dati,omi=getOmiRange(d.zona),det=[];let coef=0,n=0;
 let sup=d.mq||0;sup+=(d.mqBalconi||0)*PESI.balcone+(d.mqTerrazzo||0)*PESI.terrazzo+(d.mqGiardino||0)*PESI.giardino+(d.mqCantina||0)*PESI.cantina+(d.mqBox||0)*PESI.box;
-det.push({fattore:'Base OMI',condizione:omi.fonte,valore:0});n++;
+det.push({fattore:omi.fonte&&/^omi/i.test(omi.fonte)?'Fascia OMI ufficiale':'Appunto interno (NON OMI)',condizione:omi.fonte,valore:0});n++;
 const pl=d.piano<=0?'terra':d.piano===1?'primo':d.piano===2?'secondo':d.piano===3?'terzo':'ultimo';
 if(d.tipo!=='box'){const v=(d.ascensore?COEFF.piano.con:COEFF.piano.senza)[pl]||0;if(v){coef+=v;det.push({fattore:'Piano',condizione:pl,valore:v});n++}}
 if(d.stato){const v=COEFF.stato[d.stato]||0;if(v){coef+=v;det.push({fattore:'Stato',condizione:d.stato,valore:v});n++}}
@@ -1043,7 +1046,14 @@ if(d.vista){const v=COEFF.vista[d.vista]||0;if(v){coef+=v;det.push({fattore:'Vis
 if(d.trendZona){const v={crescente:5,stabile:0,calo:-5}[d.trendZona];if(v){coef+=v;det.push({fattore:'Trend',condizione:d.trendZona,valore:v});n++}}
 if(d.domotica){coef+=3;det.push({fattore:'Domotica',condizione:'presente',valore:3});n++}
 const base=Math.round(omi.mid*sup*(1+coef/100));
-V.risultato={base,min:Math.round(base*.93),max:Math.round(base*1.07),mq:Math.round(base/Math.max(sup,1)),sup,coef,det,conf:Math.min(100,60+det.length*2)}}
+/* Affidabilità: sale SOLO con i venduti veri in zona (quanti e quanto recenti),
+   non contando i coefficienti. Regola del valutatore. Con zero venduti veri
+   resta bassa e la forbice si allarga, invece di far finta di essere precisi. */
+const vendutiZona=(DB.vendite||[]).filter(v=>v&&v.prezzoVendita>0&&v.prezzoPubblicato>0&&(!d.zona||!v.zona||stessaZona(v.zona,d.zona))&&(!v.dataVendita||v.dataVendita>=limite36()));
+const nVenduti=vendutiZona.length, recentiZona=vendutiZona.filter(v=>daysSince(v.dataVendita)<365).length;
+const conf=Math.min(92,Math.round((nVenduti===0?15:nVenduti===1?30:nVenduti<=2?45:nVenduti<=4?60:nVenduti<=9?75:85)+Math.min(10,recentiZona*3)));
+const ampia=nVenduti>=3?.07:(nVenduti>=1?.12:.18);
+V.risultato={base,min:Math.round(base*(1-ampia)),max:Math.round(base*(1+ampia)),mq:Math.round(base/Math.max(sup,1)),sup,coef,det,conf,nVenduti,ampia,vendutiZona,zona:d.zona||''}}
 function vtStep7(){if(!V.risultato)vtCalcola();const r=V.risultato,d=V.dati;
 const canA=Math.round(r.base*.055),canM=Math.round(canA/12);
 return`<div class="risultato-box"><div class="risultato-prezzo">${fmtEuro(r.base)}</div><div class="risultato-range">Forbice ${fmtEuro(r.min)} – ${fmtEuro(r.max)}</div><div class="risultato-permq">${fmtEuro(r.mq)}/mq · sup comm ${r.sup.toFixed(0)}mq</div>
@@ -1053,7 +1063,8 @@ return`<div class="risultato-box"><div class="risultato-prezzo">${fmtEuro(r.base
 <div class="card"><h3 style="color:var(--gold)">📐 Coefficienti</h3><div style="max-height:240px;overflow-y:auto"><table class="coeff-table"><tbody>${r.det.map(x=>`<tr><td><b>${esc(x.fattore)}</b></td><td style="color:var(--text2)">${esc(x.condizione)}</td><td style="text-align:right;color:${x.valore>0?'var(--green)':x.valore<0?'var(--red)':'var(--text2)'}">${x.valore>0?'+':''}${x.valore}%</td></tr>`).join('')}</tbody></table></div></div>
 ${htmlVenditeValutazione(d)}${htmlAnnunciZona(d)}
 <div class="card"><h3 style="color:var(--gold)">🎯 Strategia</h3><ul class="strategia-list"><li>💰 Richiesta: ${fmtEuro(Math.round(r.base*1.05))} (+5%)</li><li>🎯 Trattativa: ${fmtEuro(r.min)} – ${fmtEuro(r.base)}</li><li>🚫 Minimo: ${fmtEuro(r.min)}</li>${d.giorniMercato>120?'<li>⏰ Oltre 120gg: ribasso 5-10%</li>':''}</ul></div>
-<div class="alert gold">⚠️ La fascia di zona è un numero scritto nel programma, non un rogito. Il venduto vero è solo quello che hai segnato: prezzo pubblicato e prezzo di vendita.</div>`}
+${htmlTreRighe(d,r)}
+<div class="alert gold">⚠️ La fascia di zona è un numero scritto nel programma, non un rogito. Il venduto vero è solo quello che hai segnato: prezzo pubblicato e prezzo di vendita. Questa è una <b>stima di lavoro</b>: non è una perizia e non è un valore garantito. <button class="btn btn-ghost btn-xs" onclick="stampaStima()">🖨️ Stampa la stima</button></div>`}
 /* INCROCI */
 function runChecks(){const F=[];const o=today();const push=(s,cat,t,d,g,id)=>F.push({sev:s,cat,t,d,g,id});
 (DB.clienti||[]).forEach(c=>{if(c.stato==='chiuso')return;if(c.dataRichiamo&&c.dataRichiamo<today())push('high','Contatti',(c.nome||'')+' '+(c.cognome||'')+' da richiamare '+ageText(c.dataRichiamo),'Promemoria scaduto','contatti',c.id);const gg=daysSince(c.ultimoContatto||c.dataCreazione||c.dataPrimoContatto);if(c.stato==='caldo'&&gg>7)push('high','Contatti',c.nome+' '+c.cognome+' caldo fermo da '+gg+'gg','Ricontattalo','contatti',c.id);else if(gg>21)push('medium','Contatti',c.nome+' '+c.cognome+' fermo da '+gg+'gg','Ricontatto','contatti',c.id);if(c.collaborativo==='si'&&c.presentazioneInviata!=='si')push('medium','Presentazione',(c.nome||'')+' '+(c.cognome||'')+' collaborativo senza presentazione','Inviala','contatti',c.id)});
@@ -1216,7 +1227,7 @@ ${syncCardHTML()}
 <button class="btn btn-ghost" onclick="document.getElementById('import-file').click()">📤 Importa backup</button>
 <input type="file" id="import-file" style="display:none" accept=".json" onchange="importaBackup(this.files[0])">
 <button class="btn btn-danger" onclick="resetTotale()">🗑️ Reset totale</button></div></div>
-<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.5.12</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
+<div class="card"><div class="card-title" style="margin-bottom:10px">ℹ️ Info</div><div style="font-size:12px;color:var(--text2);line-height:1.7"><b>ImmoCRM Pro v10.6.0</b><br>${(DB.clienti||[]).length} contatti · ${(DB.immobili||[]).length} immobili · ${(DB.mandati||[]).length} mandati · ${(DB.chiamate||[]).length} chiamate<br>Ultimo salvataggio: ${DB._ts?new Date(DB._ts).toLocaleString('it-IT'):'mai'}</div></div></div></div>`}
 /* ---------- v10.5: PROTEZIONE DATI DA PULIZIA DEL COMPUTER ---------- */
 async function caricaProtezione(){const el=document.getElementById('protect-status');if(!el||!window.ImmoSync)return;
 try{const r=await ImmoSync.verifyStorage();
@@ -1335,7 +1346,7 @@ location.reload()}
 async function installaApp(){if(window._deferredPrompt){window._deferredPrompt.prompt();const r=await window._deferredPrompt.userChoice.catch(()=>null);window._deferredPrompt=null;showToast(r&&r.outcome==='accepted'?'✅ App installata':'Installazione annullata','info');return}
 const iOS=/iPhone|iPad|iPod/.test(navigator.userAgent);
 showToast(iOS?'Su iPhone/iPad: tocca Condividi ⇪ poi "Aggiungi a Home"':'Su Android/PC: menu del browser → "Installa app" — oppure aggiungila ai preferiti','info',6000)}
-function esportaBackup(){const out={_export:'immocrm',versione:'10.5.12',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
+function esportaBackup(){const out={_export:'immocrm',versione:'10.6.0',esportatoIl:new Date().toISOString(),dispositivo:(window.ImmoSync?ImmoSync.deviceName():''),dati:DB};
 const b=new Blob([JSON.stringify(out,null,2)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='immocrm-backup-'+today()+'.json';a.click();URL.revokeObjectURL(u);showToast('Backup scaricato ✓');if(window.ImmoSync)ImmoSync.mirror(DB)}
 function importaBackup(f){if(!f)return;if(!confirm('Sovrascrivere i dati di questo dispositivo con il backup?'))return;const r=new FileReader();
 r.onload=e=>{try{const d=JSON.parse(e.target.result);const dati=d&&d._export==='immocrm'?d.dati:d;if(!dati||typeof dati!=='object')throw 0;
@@ -1520,8 +1531,415 @@ if(window._bootSource==='emergenza')setTimeout(()=>showToast('🆘 Dati ripristi
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();window._deferredPrompt=e;renderSyncPill()});
 window.addEventListener('appinstalled',function(){if(!window.ImmoSync||!ImmoSync.requestPersist)return;ImmoSync.requestPersist().then(function(ok){window._persisted=!!ok;if(ok)showToast('🔒 App installata: i dati restano su questo dispositivo','success',6000);try{caricaProtezione()}catch(e){}}).catch(function(){})});
 if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(e=>console.warn('sw',e))})}
-checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.5.12','font-size:14px;font-weight:bold;color:#c9a96e');
+checkLoginRequired();window.DB=DB;console.log('%c🏠 ImmoCRM Pro v10.6.0','font-size:14px;font-weight:bold;color:#c9a96e');
 }catch(err){console.error(err);var e=document.getElementById('login-err');if(e)e.textContent='Errore avvio: '+(err&&err.message?err.message:err)}
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bootApp);
 else bootApp();
+
+/* ============================================================================
+   v10.6 — PROMEMORIA, COLLEGAMENTO DEI CONTATTI, STIMA A TRE RIGHE
+   Aggiunto in fondo al file per non toccare il codice che già funziona.
+   Le funzioni qui sotto sono dichiarate con "function": valgono in tutto il
+   programma (le dichiarazioni di funzione vengono lette prima dell'esecuzione).
+   ============================================================================ */
+
+/* ---------- 1) I DUE PULSANTI CHE NON FUNZIONAVANO (v10.6) ----------
+   Nella scheda contatto i tasti "Log chiamata", "Log WhatsApp", "Log visita"
+   e la "✕" della timeline chiamavano funzioni che non esistevano. Ora ci sono. */
+function logRapido(id,tipo){
+  const c=(DB.clienti||[]).find(x=>String(x.id)===String(id));
+  if(!c){showToast('Contatto non trovato','error');return}
+  const et={chiamata:'📞 Chiamata',whatsapp:'💬 WhatsApp',visita:'🏠 Visita',email:'📧 Email',nota:'📝 Nota'};
+  const g=et[tipo]||('📝 '+tipo);
+  DB.eventi=DB.eventi||[];
+  DB.eventi.push({id:Date.now(),contattoId:c.id,tipo:tipo||'nota',titolo:g,data:nowISO(),updatedAt:Date.now()});
+  c.ultimoContatto=today();
+  if(!c.dataPrimoContatto)c.dataPrimoContatto=today();
+  save();
+  closeModal();openContattoModal(id);
+  showToast(g+' segnata nella timeline');
+}
+function deleteEvento(evId,contattoId){
+  const i=(DB.eventi||[]).findIndex(e=>String(e.id)===String(evId));
+  if(i<0){showToast('Evento non trovato','error');return}
+  DB.eventi.splice(i,1);
+  save();
+  closeModal();
+  if(contattoId!=null)openContattoModal(contattoId);
+  showToast('Evento tolto dalla timeline');
+}
+
+/* ---------- 2) OGNI CONTATTO APRIBILE DA OGNI SEZIONE ---------- */
+function vaiAContatto(id){
+  if(id==null)return;
+  closeModal();
+  const sec=document.getElementById('app-shell');
+  if(!sec||sec.style.display==='none')return;
+  activeSection='contatti';
+  _contF={tipo:'',stato:'',fonte:'',ricerca:'',quick:'',collab:'',pres:''};
+  buildNav();render();
+  setTimeout(()=>openContattoModal(id),60);
+}
+/* Passata dopo ogni disegno di pagina: dove compare un contatto, aggiunge il
+   tasto 👤 che apre la sua scheda. Così da Chiamate, Immobili, Trattative,
+   Fatture, Documenti, Mandati, Open House, Lead, Attività e Calendario si
+   arriva sempre alla stessa scheda, senza cercarlo a mano. */
+function indiceContatti(){
+  const idx=[];
+  (DB.clienti||[]).forEach(c=>{
+    const nome=[c.nome,c.cognome].filter(Boolean).join(' ').trim();
+    const tel=String(c.telefono||'').replace(/\D/g,'');
+    if(nome.length>=6)idx.push({id:c.id,chiave:nome.toLowerCase(),tipo:'nome'});
+    if(tel.length>=8)idx.push({id:c.id,chiave:tel,tipo:'tel'});
+  });
+  return idx;
+}
+function collegaContattiAutomatico(){
+  const cont=document.getElementById('content');
+  if(!cont||!DB.clienti||!DB.clienti.length)return;
+  cont.querySelectorAll('.link-scheda').forEach(el=>el.remove());
+  const idx=indiceContatti();
+  if(!idx.length)return;
+  const righe=cont.querySelectorAll('tr, .row, .incrocio, .card-title, .card, .stat-box, .mandato-row, .oh-row, li');
+  let fatte=0;
+  righe.forEach(r=>{
+    if(fatte>=120)return;
+    const txt=String(r.textContent||'').toLowerCase();
+    if(txt.length<6||txt.length>600)return;
+    const trovati=[];
+    for(const v of idx){
+      if(trovati.length>=2)break;
+      const gia=trovati.some(t=>String(t)===String(v.id));
+      if(gia)continue;
+      if(txt.indexOf(v.chiave)>=0)trovati.push(v.id);
+    }
+    if(!trovati.length)return;
+    const b=document.createElement('button');
+    b.className='btn btn-ghost btn-xs link-scheda';
+    b.textContent='👤';
+    b.title='Apri la scheda del contatto';
+    b.setAttribute('data-contatto',String(trovati[0]));
+    b.onclick=function(ev){ev.stopPropagation();vaiAContatto(this.getAttribute('data-contatto'))};
+    r.appendChild(b);
+    fatte++;
+  });
+}
+
+/* ---------- 3) RIQUADRO SVEGLIE DENTRO LA SCHEDA CONTATTO ---------- */
+function iniettaPromemoriaInScheda(id){
+  const modali=document.querySelectorAll('.modal-overlay');
+  const m=modali[modali.length-1];
+  if(!m||!id)return;
+  const c=(DB.clienti||[]).find(x=>String(x.id)===String(id));
+  if(!c)return;
+  const miei=(window.Promemoria?Promemoria.perContatto(DB,id):[]).slice().sort((a,b)=>(a.data+a.ora).localeCompare(b.data+b.ora));
+  const riga=m.querySelector('.modal-footer');
+  if(!riga)return;
+  const box=document.createElement('div');
+  box.id='box-promemoria';
+  const oggi=isoLocal(new Date());
+  box.innerHTML=`
+  <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+    <div class="card-title" style="margin-bottom:8px">⏰ Sveglia per il richiamo</div>
+    <div class="login-hint" style="margin-bottom:8px">La sveglia arriva <b>3 giorni prima</b>, <b>il giorno prima</b>, <b>un'ora prima</b> e <b>al momento del richiamo</b>. Una volta sola per ciascuno.</div>
+    <div class="form-row-3">
+      <div class="form-group"><label class="form-label">Data del richiamo</label><input id="prm-data" type="date" class="inp" value="${oggi}"></div>
+      <div class="form-group"><label class="form-label">Ora</label><input id="prm-ora" type="time" class="inp" value="10:00"></div>
+      <div class="form-group"><label class="form-label">Nota</label><input id="prm-nota" class="inp" placeholder="es. richiamo per il mutuo"></div>
+    </div>
+    <div class="row-tight" style="flex-wrap:wrap;gap:6px;margin-bottom:10px">
+      <button class="btn btn-ghost btn-xs" onclick="creaPromemoriaDaScheda(${id},1)">Domani</button>
+      <button class="btn btn-ghost btn-xs" onclick="creaPromemoriaDaScheda(${id},3)">Fra 3 giorni</button>
+      <button class="btn btn-ghost btn-xs" onclick="creaPromemoriaDaScheda(${id},7)">Fra una settimana</button>
+      <button class="btn btn-gold btn-xs" onclick="creaPromemoriaDaScheda(${id},0)">✅ Metti la sveglia</button>
+    </div>
+    <div style="max-height:170px;overflow-y:auto">${miei.length?miei.map(p=>`
+      <div class="row" style="gap:8px;padding:8px;border-radius:8px;margin-bottom:4px;background:var(--bg3)">
+        <div style="font-size:16px">${p.stato==='fatto'?'✅':'⏰'}</div>
+        <div style="flex:1"><div style="font-size:12px;font-weight:600">${fmtDate(p.data)} alle ${esc(p.ora)}</div>
+        <div style="font-size:10px;color:var(--text2)">${esc(p.nota||p.tipo||'richiamo')}${p.stato==='fatto'?' · fatto':''}</div></div>
+        ${p.stato==='attivo'?`<button class="btn btn-ghost btn-xs" onclick="promemoriaRinvia('${p.id}',1,${id})" title="Sposta a domani">+1g</button><button class="btn btn-green btn-xs" onclick="promemoriaFatto('${p.id}',${id})" title="Fatto">✓</button>`:''}
+        <button class="btn btn-ghost btn-xs" onclick="promemoriaElimina('${p.id}',${id})" title="Elimina">✕</button>
+      </div>`).join(''):'<div class="empty-state text-sm">Nessuna sveglia per questo contatto.</div>'}</div>
+  </div>`;
+  riga.parentNode.insertBefore(box,riga);
+}
+function creaPromemoriaDaScheda(clienteId,giorniAvanti){
+  const c=(DB.clienti||[]).find(x=>String(x.id)===String(clienteId));
+  if(!c){showToast('Contatto non trovato','error');return}
+  const elD=document.getElementById('prm-data'),elO=document.getElementById('prm-ora'),elN=document.getElementById('prm-nota');
+  let data=elD&&elD.value?elD.value:isoLocal(new Date());
+  let ora=elO&&elO.value?elO.value:'10:00';
+  if(giorniAvanti>0){data=isoLocal(addDays(new Date(data+'T00:00:00'),giorniAvanti));ora='09:00'}
+  if(!window.Promemoria){showToast('Motore sveglie non caricato','error');return}
+  const p=Promemoria.crea(DB,{clienteId:c.id,nome:[c.nome,c.cognome].filter(Boolean).join(' '),telefono:c.telefono||'',data:data,ora:ora,nota:(elN&&elN.value)||'',tipo:'richiamo'});
+  if(!p){showToast('Data non valida: controlla la data','error');return}
+  /* Tiene allineato anche il vecchio campo "richiamo" del contatto, così le
+     altre schermate continuano a funzionare come prima. */
+  c.dataRichiamo=data;if(!c.dataOraRichiamo)c.dataOraRichiamo=ora;c.updatedAt=Date.now();
+  save();
+  closeModal();openContattoModal(clienteId);
+  showToast('⏰ Sveglia messa: '+fmtDate(data)+' alle '+ora);
+}
+function promemoriaFatto(id,clienteId){
+  const p=window.Promemoria&&Promemoria.trova(DB,id);if(!p)return;
+  Promemoria.chiudi(p,'fatto');
+  DB.eventi=DB.eventi||[];
+  if(clienteId!=null)DB.eventi.push({id:Date.now(),contattoId:clienteId,tipo:'chiamata',titolo:'📞 Richiamo fatto',data:nowISO(),updatedAt:Date.now()});
+  save();closeModal();if(clienteId!=null)openContattoModal(clienteId);showToast('✅ Sveglia chiusa');
+}
+function promemoriaRinvia(id,giorni,clienteId){
+  const p=window.Promemoria&&Promemoria.trova(DB,id);if(!p)return;
+  Promemoria.rinvia(p,giorni);
+  save();closeModal();if(clienteId!=null)openContattoModal(clienteId);showToast('Sveglia spostata a '+fmtDate(p.data));
+}
+function promemoriaElimina(id,clienteId){
+  const p=window.Promemoria&&Promemoria.trova(DB,id);if(!p)return;
+  Promemoria.chiudi(p,'annullato');
+  save();closeModal();if(clienteId!=null)openContattoModal(clienteId);showToast('Sveglia eliminata');
+}
+
+/* ---------- 4) SEZIONE "PROMEMORIA" ---------- */
+function renderPromemoria(c){
+  if(!window.Promemoria){c.innerHTML='<div class="card">Motore sveglie non caricato.</div>';return}
+  const cfg=Promemoria.configCanali(DB);
+  const ora=new Date();
+  const scad=Promemoria.scaduti(DB,ora);
+  const pros=Promemoria.prossime(DB,ora);
+  const oggiS=isoLocal(ora);
+  const oggi=pros.filter(x=>isoLocal(x.quando)===oggiS);
+  const dopo=pros.filter(x=>isoLocal(x.quando)!==oggiS);
+  const riga=(x,scaduta)=>{
+    const p=x.p||x;
+    const tel=String(p.telefono||'').replace(/\D/g,'');
+    return `<div class="row" style="gap:10px;padding:10px 0;border-bottom:1px solid var(--bg4)">
+      <div style="font-size:18px">${scaduta?'🔴':x.finestra&&x.finestra.chiave==='t0'?'⏰':'🗓️'}</div>
+      <div style="flex:1;min-width:0;cursor:pointer" onclick="vaiAContatto(${JSON.stringify(p.clienteId||'')})">
+        <div style="font-size:13px;font-weight:600">${esc(p.nome||'cliente')}</div>
+        <div style="font-size:11px;color:var(--text2)">${fmtDate(p.data)} alle <b>${esc(p.ora)}</b>${x.finestra?' · '+(scaduta?'sveglia mancata: ':'prossima sveglia: ')+esc(x.finestra.etichetta):' · in ritardo'}${p.nota?' · '+esc(p.nota):''}</div>
+      </div>
+      ${tel?`<button class="btn btn-ghost btn-xs" onclick="window.open('tel:${tel}','_self')" title="Chiama">📞</button>
+      <button class="btn btn-gold btn-xs" onclick="whatsappCliente(${JSON.stringify(p.clienteId||'')})" title="WhatsApp">💬</button>`:''}
+      <button class="btn btn-green btn-xs" onclick="promemoriaFatto('${p.id}',${JSON.stringify(p.clienteId||'')})" title="Fatto">✓</button>
+      <button class="btn btn-ghost btn-xs" onclick="promemoriaRinvia('${p.id}',1,${JSON.stringify(p.clienteId||'')})" title="Domani">+1g</button>
+      <button class="btn btn-ghost btn-xs" onclick="vaiAContatto(${JSON.stringify(p.clienteId||'')})" title="Apri la scheda">👤</button>
+    </div>`};
+  const attivi=Promemoria.elenco(DB).filter(p=>p.stato==='attivo');
+  c.innerHTML=`<div class="stack">
+    <div class="card"><div class="row" style="justify-content:space-between">
+      <div><div class="card-title" style="font-size:17px">⏰ Promemoria e sveglie</div>
+      <div class="card-subtitle">${attivi.length} sveglie attive · il promemoria arriva 3 giorni prima, il giorno prima, un'ora prima e al momento del richiamo</div></div>
+      <div class="row-tight"><button class="btn btn-ghost" onclick="eseguiPromemoria(true)">🔔 Prova adesso</button>
+      <button class="btn btn-gold" onclick="scaricaCalendarioSveglie()">📥 Calendario</button></div></div></div>
+
+    ${scad.length?`<div class="card" style="border-color:rgba(239,68,68,.4)"><div class="card-title" style="color:var(--red)">🔴 In ritardo (${scad.length})</div>${scad.map(p=>riga(p,true)).join('')}</div>`:''}
+    <div class="card"><div class="card-title">📅 Oggi</div>${oggi.length?oggi.map(x=>riga(x,false)).join(''):'<div class="empty-state text-sm">Nessuna sveglia oggi.</div>'}</div>
+    ${dopo.length?`<div class="card"><div class="card-title">🗓️ Prossime sveglie</div>${dopo.slice(0,40).map(x=>riga(x,false)).join('')}</div>`:''}
+
+    <div class="card" id="sveglie-canali"><div class="card-title" style="font-size:16px">🔔 Dove arriva la sveglia</div>
+      <div class="card-subtitle" style="margin-bottom:10px">Puoi accenderne più di una. Il numero di recapito è <b>${esc(cfg.recapito)}</b>.</div>
+      <div class="table-wrap"><table class="table"><tbody>
+        <tr><td><b>Notifica sul dispositivo</b><div style="font-size:10px;color:var(--text2)">Subito, se l'app è aperta</div></td>
+            <td style="text-align:right">${cfg.notifica?'<span class="badge badge-green">accesa</span>':'<span class="badge">spenta</span>'} <button class="btn btn-ghost btn-xs" onclick="impostaSveglia('notifica',${!cfg.notifica})">${cfg.notifica?'Spegni':'Accendi'}</button></td></tr>
+        <tr><td><b>ntfy (consigliato)</b><div style="font-size:10px;color:var(--text2)">Gratis, arriva sul telefono <b>anche ad app chiusa</b>. Serve un canale inventato da te.</div></td>
+            <td style="text-align:right">${cfg.ntfy?'<span class="badge badge-green">acceso</span>':'<span class="badge">spento</span>'}</td></tr>
+        <tr><td colspan="2"><input id="prm-ntfy" class="inp" placeholder="nome canale ntfy, es. immocrm-davide-8f3k" value="${esc(cfg.ntfy)}">
+            <div class="login-hint">Sul telefono: installa l'app <b>ntfy</b>, premi "+" e scrivi lo stesso nome. Poi premi Salva qui.</div></td></tr>
+        <tr><td><b>Telegram</b><div style="font-size:10px;color:var(--text2)">Gratis, arriva anche ad app chiusa</div></td>
+            <td style="text-align:right">${(cfg.telegramToken&&cfg.telegramChat)?'<span class="badge badge-green">acceso</span>':'<span class="badge">spento</span>'}</td></tr>
+        <tr><td colspan="2"><input id="prm-tg-token" class="inp" placeholder="codice del bot Telegram" value="${esc(cfg.telegramToken)}" style="margin-bottom:6px">
+            <input id="prm-tg-chat" class="inp" placeholder="chat id (lo dà il bot)" value="${esc(cfg.telegramChat)}"></td></tr>
+        <tr><td><b>SMS</b><div style="font-size:10px;color:var(--text2)">A pagamento: serve un account di invio (Twilio o Skebby). Finché non lo attivi resta spento.</div></td>
+            <td style="text-align:right">${(cfg.smsOk&&cfg.smsUrl)?'<span class="badge badge-green">acceso</span>':'<span class="badge">spento</span>'}</td></tr>
+        <tr><td colspan="2"><input id="prm-sms-url" class="inp" placeholder="indirizzo di invio (es. https://api.twilio.com/2010-04-01/Accounts/ACxxx/Messages.json)" value="${esc(cfg.smsUrl)}" style="margin-bottom:6px">
+            <div class="form-row-3"><input id="prm-sms-user" class="inp" placeholder="utente" value="${esc(cfg.smsUser)}"><input id="prm-sms-pass" class="inp" type="password" placeholder="chiave" value="${esc(cfg.smsPass)}"><input id="prm-sms-mitt" class="inp" placeholder="mittente" value="${esc(cfg.smsMittente)}"></div>
+            <label class="form-label" style="margin-top:6px"><input type="checkbox" id="prm-sms-ok" ${cfg.smsOk?'checked':''}> ho messo l'account: manda anche gli SMS</label></td></tr>
+        <tr><td><b>Quanto scrivere nell'avviso</b><div style="font-size:10px;color:var(--text2)">Il nome completo esce dal telefono solo se lo scegli tu.</div></td>
+            <td style="text-align:right"><select class="inp" id="prm-privacy" style="width:auto">
+              <option value="completo" ${cfg.privacy==='completo'?'selected':''}>nome e telefono</option>
+              <option value="cognome" ${cfg.privacy==='cognome'?'selected':''}>solo cognome</option>
+              <option value="codice" ${cfg.privacy==='codice'?'selected':''}>solo codice contatto</option></select></td></tr>
+        <tr><td><b>Numero di recapito</b></td><td style="text-align:right"><input id="prm-recapito" class="inp" style="width:150px;display:inline-block" value="${esc(cfg.recapito)}"></td></tr>
+      </tbody></table></div>
+      <div class="row-tight" style="margin-top:10px"><button class="btn btn-primary" onclick="salvaSveglie()">💾 Salva le sveglie</button>
+      <button class="btn btn-ghost" onclick="chiediPermessoNotifiche()">🔔 Attiva le notifiche</button>
+      <button class="btn btn-ghost" onclick="esportaCodaSveglie()" title="Per far suonare la sveglia anche ad app chiusa, senza aprire ImmoCRM">📤 Esporta coda per il pianificatore</button></div>
+      <div class="login-hint" style="margin-top:8px">Nota onesta: una pagina web da sola non può inviare SMS né svegliarti ad app chiusa. Per quello servono i canali qui sopra (ntfy o Telegram) oppure il pianificatore esterno: la guida è nel file <b>GUIDA-SVEGLIE.txt</b> del progetto.</div>
+    </div>
+  </div>`;
+  collegaContattiAutomatico();
+}
+function impostaSveglia(campo,valore){
+  Promemoria.salvaConfig(DB,{[campo]:!!valore});
+  save();render();showToast(valore?'Acceso':'Spento');
+}
+function salvaSveglie(){
+  const v=id=>{const e=document.getElementById(id);return e?e.value:''};
+  Promemoria.salvaConfig(DB,{
+    ntfy:v('prm-ntfy').trim(),
+    telegramToken:v('prm-tg-token').trim(),telegramChat:v('prm-tg-chat').trim(),
+    smsUrl:v('prm-sms-url').trim(),smsUser:v('prm-sms-user').trim(),smsPass:v('prm-sms-pass'),
+    smsMittente:v('prm-sms-mitt').trim()||'ImmoCRM',
+    smsOk:!!(document.getElementById('prm-sms-ok')&&document.getElementById('prm-sms-ok').checked),
+    privacy:v('prm-privacy'),recapito:String(v('prm-recapito')).replace(/\D/g,'')
+  });
+  save();render();showToast('💾 Sveglie salvate');
+}
+function chiediPermessoNotifiche(){
+  if(typeof Notification==='undefined'){showToast('Questo browser non ha le notifiche','error');return}
+  Notification.requestPermission().then(p=>{
+    showToast(p==='granted'?'🔔 Notifiche attive':'Notifiche non concesse: usa ntfy o Telegram',p==='granted'?'success':'error');
+  });
+}
+function scaricaCalendarioSveglie(){
+  const lista=Promemoria.elenco(DB).filter(p=>p.stato==='attivo');
+  if(!lista.length){showToast('Nessuna sveglia da mettere in calendario','error');return}
+  const ics=Promemoria.esportaIcs(lista);
+  scarica('promemoria-immocrm.ics',ics,'text/calendar');
+  showToast('Apri il file sul telefono: suonerà il calendario, tre volte per ogni richiamo');
+}
+function esportaCodaSveglie(){
+  const coda=Promemoria.codaSveglia(DB,new Date(),72);
+  scarica('coda-sveglie.json',JSON.stringify({generato:nowISO(),righe:coda},null,1),'application/json');
+  showToast(coda.length+' sveglie nelle prossime 72 ore esportate (senza nomi)');
+}
+function scarica(nome,testo,tipo){
+  try{
+    const b=new Blob([testo],{type:tipo||'text/plain;charset=utf-8'});
+    const u=URL.createObjectURL(b),a=document.createElement('a');
+    a.href=u;a.download=nome;document.body.appendChild(a);a.click();
+    setTimeout(()=>{URL.revokeObjectURL(u);a.remove()},500);
+  }catch(e){showToast('Non riesco a salvare il file','error')}
+}
+/* Passata delle sveglie: guarda se qualcuna è dovuta e la manda. */
+function eseguiPromemoria(manuale){
+  if(!window.Promemoria||!DB||!DB.clienti)return Promise.resolve();
+  return Promemoria.esegui(DB,new Date()).then(r=>{
+    if(r&&r.inviate){save();if(manuale)showToast('Inviate '+r.inviate+' sveglie');}
+    else if(manuale)showToast('Nessuna sveglia da inviare adesso: sei in regola');
+    if(r&&r.inviate&&appAttiva()&&activeSection==='promemoria')render();
+  }).catch(e=>{console.warn('sveglie',e);if(manuale)showToast('Errore nell\'invio: '+(e&&e.message||e),'error')});
+}
+function avviaSveglie(){
+  try{eseguiPromemoria(false)}catch(e){}
+  setInterval(()=>{if(document.visibilityState==='visible')eseguiPromemoria(false)},60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')eseguiPromemoria(false)});
+}
+
+/* ---------- 5) STIMA A TRE RIGHE (regole del valutatore) ---------- */
+function statoSemestreOmi(){
+  /* L'Agenzia pubblica il 1° semestre a ottobre e il 2° semestre a marzo.
+     Non si inventa: si dice qual è il semestre ufficiale atteso e si invita
+     a controllare quello nuovo quando è ora. */
+  const ora=new Date(),a=ora.getFullYear(),m=ora.getMonth()+1;
+  const atteso=m>=10?(a+'-S1'):(m>=3?((a-1)+'-S2'):((a-1)+'-S2'));
+  const nuovoIn=m>=9&&m<=10?'1° semestre '+a:(m>=2&&m<=3?'2° semestre '+(a-1):'');
+  const ultimo=(DB.mercato&&DB.mercato.semestreOmi)||(DB.zoneOMI&&DB.zoneOMI[0]&&DB.zoneOMI[0].semestre)||'';
+  const mesi=(function(){if(!ultimo)return null;const y=parseInt(String(ultimo).slice(0,4),10),s=String(ultimo).indexOf('S2')>=0?2:1;return (a-y)*12+(m-(s===1?10:3))})();
+  return {atteso,nuovoIn,ultimo,mesiDaAggiornare:mesi,daAggiornare:mesi!==null&&mesi>8,caricatoOmi:!!(DB.omi&&DB.omi.length)};
+}
+function htmlTreRighe(d,r){
+  const s=statoSemestreOmi();
+  const vend=r.vendutiZona||[];
+  const chiesti=(DB.immobili||[]).filter(i=>i.zona&&d.zona&&String(i.zona).toLowerCase()===String(d.zona).toLowerCase()&&i.prezzo&&i.superficie).map(i=>Math.round(i.prezzo/i.superficie));
+  const chiestoMedio=chiesti.length?Math.round(chiesti.reduce((a,b)=>a+b,0)/chiesti.length):0;
+  const vendutoMedio=vend.length?Math.round(vend.reduce((a,b)=>a+Math.round(b.prezzoVendita/b.superficieTotale||0),0)/vend.length):0;
+  return `
+  <div class="card"><div class="card-title" style="font-size:16px">📋 Le tre righe della stima — non si mescolano</div>
+    <div class="table-wrap"><table class="table"><tbody>
+      <tr><td style="width:34%"><b>1. Fascia ufficiale</b><div style="font-size:10px;color:var(--text2)">Agenzia Entrate — OMI, semestre</div></td>
+        <td>${r.det&&r.det[0]&&/OMI ufficiale/.test(r.det[0].fattore)
+          ?`<b>${fmtEuro(r.det[0].valore||0)}</b> <span class="badge badge-green">OMI ufficiale</span><div style="font-size:10px;color:var(--text2)">fonte: ${esc((r.det[0]||{}).condizione||'OMI')}</div>`
+          :`<span class="badge" style="background:rgba(249,115,22,.2);color:var(--orange)">NON è OMI</span>
+            <div style="font-size:11px;margin-top:4px">Qui non hai ancora caricato il file ufficiale: il numero usato è un <b>appunto interno</b> (${esc((r.det[0]||{}).condizione||'—')}). Non si può chiamare OMI.
+            <button class="btn btn-ghost btn-xs" onclick="go('mercato')">Carica il semestre OMI</button></div>`}</td></tr>
+      <tr><td><b>2. Chiesto</b><div style="font-size:10px;color:var(--text2)">prezzo pubblicato negli annunci</div></td>
+        <td>${chiestoMedio?`<b>${fmtEuro(chiestoMedio)}/mq</b><div style="font-size:10px;color:var(--text2)">media di ${chiesti.length} suoi immobili in zona · non è un venduto</div>`:'<span style="color:var(--text2)">nessun annuncio in zona</span>'}</td></tr>
+      <tr><td><b>3. Venduto</b><div style="font-size:10px;color:var(--text2)">solo con fonte vera, ultimi 36 mesi</div></td>
+        <td>${vend.length?`<b>${fmtEuro(vendutoMedio)}/mq</b><div style="font-size:10px;color:var(--text2)">${vend.length} vendite vere in zona (${vend.filter(v=>daysSince(v.dataVendita)<365).length} nell'ultimo anno)</div>`:'<span style="color:var(--orange)"><b>qui il venduto non c\'è</b></span><div style="font-size:10px;color:var(--text2)">senza venduti veri la forbice resta larga e l\'affidabilità bassa: è scritto apposta</div>'}</td></tr>
+    </tbody></table></div>
+    <div class="alert ${s.daAggiornare?'orange':'green'}" style="margin-top:12px">
+      📅 <b>Semestre OMI:</b> ultimo caricato ${s.ultimo?esc(s.ultimo):'<b>nessuno</b>'} · atteso ora <b>${s.atteso}</b>${s.nuovoIn?' · <b>'+s.nuovoIn+' esce in questi giorni: controlla sul sito dell\'Agenzia</b>':''}
+      ${s.daAggiornare?'<br>⚠️ Sono passati più di 8 mesi: la fascia va considerata <b>da aggiornare</b>. Non vuol dire che il mercato è fermo.':''}${s.caricatoOmi?'':'<br>Il file ufficiale non risulta ancora caricato in Mercato OMI.'}
+    </div>
+    <div class="alert ${r.nVenduti>=3?'green':'orange'}" style="margin-top:8px">
+      🎯 <b>Forbice ${Math.round(r.ampia*200)}%</b> · affidabilità <b>${r.conf}%</b>.
+      ${r.nVenduti>=3?'Ci sono almeno 3 venduti veri: la forbice può essere stretta.'
+        :r.nVenduti>=1?'Con 1 o 2 venduti veri la forbice resta larga, per onestà.'
+        :'Con zero venduti veri non si stringe: servono vendite reali, non coefficienti.'}
+      L'affidabilità sale <b>solo</b> con venduti veri, recenti e in zona. Non è una perizia.
+    </div>
+  </div>`;
+}
+function stampaStima(){
+  const r=V&&V.risultato,d=V&&V.dati;
+  if(!r||!d){showToast('Completa prima la stima','error');return}
+  const w=window.open('','_blank');
+  if(!w){showToast('Il browser ha bloccato la finestra: usa il tasto Stampa del browser','error');return}
+  const s=statoSemestreOmi();
+  w.document.write('<!doctype html><html lang="it"><head><meta charset="utf-8"><title>Stima di lavoro — '+(d.zona||'')+'</title>'+
+  '<style>body{font-family:Georgia,serif;max-width:760px;margin:32px auto;color:#111;line-height:1.5}h1{font-size:20px}table{width:100%;border-collapse:collapse;margin:10px 0}td,th{border:1px solid #999;padding:6px;font-size:13px}.r{background:#f4f4f4;padding:10px;border:1px solid #ccc}</style></head><body>'+
+  '<h1>Stima di lavoro — non è una perizia</h1>'+
+  '<p><b>Zona:</b> '+esc(d.zona||'—')+' · <b>Superficie commerciale:</b> '+r.sup.toFixed(0)+' mq · <b>Data:</b> '+fmtDate(today())+'</p>'+
+  '<p class="r"><b>Stima:</b> '+fmtEuro(r.base)+' &nbsp; <b>Forbice:</b> '+fmtEuro(r.min)+' – '+fmtEuro(r.max)+' &nbsp; <b>€/mq:</b> '+fmtEuro(r.mq)+' &nbsp; <b>Affidabilità:</b> '+r.conf+'%</p>'+
+  '<h2 style="font-size:16px">Le tre righe, separate</h2>'+
+  '<table><tr><th>Cassetto</th><th>Cosa dice</th></tr>'+
+  '<tr><td>1. Fascia ufficiale OMI</td><td>'+esc((r.det&&r.det[0]&&r.det[0].condizione)||'—')+(r.det&&r.det[0]&&/OMI ufficiale/.test(r.det[0].fattore)?' (Agenzia Entrate — OMI)':' — NON è OMI ufficiale: appunto interno')+'</td></tr>'+
+  '<tr><td>2. Chiesto</td><td>prezzi pubblicati negli annunci — non sono venduti</td></tr>'+
+  '<tr><td>3. Venduto</td><td>'+(r.nVenduti?r.nVenduti+' vendite vere in zona, ultimi 36 mesi':'qui il venduto non c\'è')+'</td></tr></table>'+
+  '<h2 style="font-size:16px">Correzioni di lavoro (modificabili, non sono una legge)</h2>'+
+  '<table><tr><th>Fattore</th><th>Condizione</th><th>Effetto</th></tr>'+(r.det||[]).map(x=>'<tr><td>'+esc(x.fattore)+'</td><td>'+esc(x.condizione)+'</td><td>'+(x.valore>0?'+':'')+x.valore+'%</td></tr>').join('')+'</table>'+
+  '<p><b>Semestre OMI:</b> ultimo caricato '+esc(s.ultimo||'nessuno')+' · atteso '+esc(s.atteso)+(s.daAggiornare?' — <b>fascia da aggiornare</b>':'')+'</p>'+
+  '<p style="font-size:12px;color:#444">Documento generato da ImmoCRM Pro. Le quotazioni OMI non sostituiscono la stima puntuale (Agenzia delle Entrate). Questa è una stima di lavoro, non una perizia e non un valore garantito.</p>'+
+  '</body></html>');
+  w.document.close();setTimeout(()=>{try{w.print()}catch(e){}},400);
+}
+
+/* ---------- 6) SICUREZZA DEI DATI: copia prima di aggiornare ----------
+   Prima di scrivere per la prima volta con la nuova versione, mette da parte
+   una copia dei dati come sono adesso. Se qualcosa va storto, si recupera. */
+function copiaPrimaDiAggiornare(){
+  try{
+    const attuale=localStorage.getItem(KEY);
+    if(!attuale)return false;
+    if(localStorage.getItem('immocrm_backup_pre_106'))return false;
+    localStorage.setItem('immocrm_backup_pre_106',attuale);
+    DB._schema=106;
+    return true;
+  }catch(e){console.warn('copia pre-aggiornamento',e);return false}
+}
+function ripristinaCopiaPreAggiornamento(){
+  try{
+    const c=localStorage.getItem('immocrm_backup_pre_106');
+    if(!c){showToast('Nessuna copia di sicurezza trovata','error');return}
+    const dati=JSON.parse(c);
+    if(!dati||typeof dati!=='object'){showToast('Copia non leggibile','error');return}
+    if(!confirm('Ripristinare i dati come erano prima dell\'aggiornamento? Le modifiche fatte dopo andranno perse.'))return;
+    DB=dati;window.DB=DB;
+    if(window.ImmoSync){try{ImmoSync.adopt(DB);ImmoSync.mirror(DB)}catch(e){}}
+    save();render();showToast('✅ Dati ripristinati dalla copia di sicurezza');
+  }catch(e){showToast('Ripristino non riuscito','error')}
+}
+
+/* ---------- 7) AVVIO DELLE NOVITÀ ---------- */
+(function initNovitaV106(){
+  function avvia(){
+    try{
+      if(window.Promemoria){
+        RENDERERS.promemoria=renderPromemoria;
+        if(!NAV_ITEMS.some(x=>x.id==='promemoria'))NAV_ITEMS.splice(5,0,{id:'promemoria',label:'Promemoria',icon:'⏰'});
+        /* Disegno della pagina + collegamento dei contatti */
+        const rp=render;
+        render=function(){rp.apply(null,arguments);try{collegaContattiAutomatico()}catch(e){}};
+        /* Riquadro sveglie dentro la scheda contatto */
+        const oc=openContattoModal;
+        openContattoModal=function(id){oc.apply(null,arguments);try{iniettaPromemoriaInScheda(id)}catch(e){}};
+        avviaSveglie();
+      }
+      copiaPrimaDiAggiornare();
+      if(typeof buildNav==='function')buildNav();
+    }catch(e){console.warn('novità v10.6',e)}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',avvia);else avvia();
+})();

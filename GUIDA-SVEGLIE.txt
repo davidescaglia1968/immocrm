@@ -1,0 +1,125 @@
+================================================================================
+GUIDA SVEGLIE — ImmoCRM Pro v10.6
+Come farsi avvisare sul telefono quando devi richiamare un cliente
+================================================================================
+
+Cosa fa, in una frase
+  Per ogni contatto puoi mettere una sveglia con DATA e ORA del richiamo.
+  Il CRM ti avvisa quattro volte: tre giorni prima, il giorno prima,
+  un'ora prima e al momento esatto del richiamo.
+
+Dove si mette la sveglia
+  1. Apri la scheda del contatto (dal menu Contatti, o dal tasto 👤 che
+     ora compare accanto ai nomi nelle altre schermate).
+  2. Scorri in basso: c'è il riquadro "⏰ Sveglia per il richiamo".
+  3. Scrivi la data e l'ora, poi premi "✅ Metti la sveglia".
+     Se hai fretta: "Domani", "Fra 3 giorni" o "Fra una settimana"
+     mettono la sveglia da soli (alle 9 del mattino).
+  Tutte le sveglie si vedono nella voce di menu "⏰ Promemoria".
+
+--------------------------------------------------------------------------------
+DA DOVE ARRIVA L'AVVISO — scegli tu, si accendono uno per uno
+--------------------------------------------------------------------------------
+
+1) NOTIFICA SUL DISPOSITIVO — accesa, gratis, subito
+   Arriva quando l'app è aperta (anche in una scheda in secondo piano).
+   La prima volta il browser chiede il permesso: premi "Consenti".
+
+2) NTFY — QUESTA È QUELLA CHE CONSIGLIO — gratis, arriva anche ad app chiusa
+   ntfy è un servizio gratuito che manda l'avviso al telefono. Non serve
+   registrarsi. Si fa una volta sola:
+     a. Sul telefono, installa l'app "ntfy" (Play Store o App Store).
+     b. Apri ntfy, premi "+" e inventa un nome lungo, difficile da
+        indovinare. Esempio: immocrm-davide-8f3k2
+        (quel nome è la vostra password: non usare "immocrm" da solo).
+     c. Sul telefono, nella stessa app, iscriviti a quel nome.
+     d. Su ImmoCRM: menu "⏰ Promemoria" → nel riquadro "Dove arriva la
+        sveglia", scrivi quel nome nel campo "ntfy" → premi "💾 Salva".
+   Fatto. Prova con "🔔 Prova adesso": se il telefono suona, è collegato.
+   Nota: il servizio gratuito accetta sveglie fino a 3 giorni in avanti.
+   ImmoCRM riarma da solo quelle più lontane ogni volta che apri l'app.
+   Se apri ImmoCRM almeno una volta ogni 3 giorni, non perdi nessuna sveglia.
+
+3) TELEGRAM — gratis, arriva anche ad app chiusa
+   a. Su Telegram cerca "BotFather", scrivi /newbot e segui le istruzioni:
+      ottieni un codice lungo (il "codice del bot").
+   b. Scrivi un messaggio qualsiasi al tuo nuovo bot.
+   c. Su ImmoCRM incolla il codice in "codice del bot Telegram".
+      Per la "chat id": apri nel browser
+      https://api.telegram.org/bot<IL_TUO_CODICE>/getUpdates
+      e cerca "chat":{"id": ... } — quel numero è la chat id.
+   d. Salva. Prova con "🔔 Prova adesso".
+
+4) SMS — A PAGAMENTO, e richiede un tuo account di invio
+   Qui bisogna essere chiari, perché è il punto dove è facile
+   raccontare frottole: ImmoCRM è una pagina web. Una pagina web, da sola,
+   NON PUÒ mandare SMS. Per mandare un SMS serve un servizio di invio
+   (che costa pochi centesimi a messaggio) e le credenziali di quel
+   servizio. Finché non le metti, la voce SMS resta spenta: il CRM te lo
+   dice, non finge.
+   Se decidi di attivarlo (dieci minuti):
+     a. Apri un account su Twilio (twilio.com) oppure Skebby (skebby.it).
+     b. Prendi l'indirizzo di invio, l'utente e la chiave.
+     c. Su ImmoCRM: "⏰ Promemoria" → riga SMS → incolla indirizzo,
+        utente, chiave, mittente → spunta "ho messo l'account" → Salva.
+   Il messaggio arriva al numero scritto in "Numero di recapito"
+   (ora è 3286930033).
+   Attenzione ai dati: il testo dell'SMS passa dal servizio di invio.
+   Se non vuoi che il nome del cliente esca dal telefono, in
+   "Quanto scrivere nell'avviso" scegli "solo cognome" oppure
+   "solo codice contatto". Con "solo codice" il messaggio dice solo
+   il numero del contatto e l'ora: il nome lo leggi dentro ImmoCRM.
+
+5) CALENDARIO DEL TELEFONO — gratis, è il più affidabile che esista
+   Nel menu "⏰ Promemoria" premi "📥 Calendario": scarichi un file.
+   Aprilo una volta sul telefono e aggiungilo al calendario.
+   Da quel momento è il telefono a suonare: non dipende né da ImmoCRM
+   né da internet. Il file contiene 3 sveglie per ogni richiamo
+   (3 giorni prima, il giorno prima, un'ora prima).
+   Utile soprattutto per i richiami importanti.
+
+6) WHATSAPP — con un tocco
+   Nella schermata Promemoria il tasto 💬 apre la chat WhatsApp del
+   contatto con il messaggio già pronto. Va premuto: WhatsApp non
+   permette l'invio automatico.
+
+--------------------------------------------------------------------------------
+COSA NON È POSSIBILE (e nessuno dovrebbe dirti il contrario)
+--------------------------------------------------------------------------------
+- Una pagina web non può inviare SMS da sola, e non può "svegliarti"
+  quando il telefono è spento o l'app non è mai aperta.
+- iPhone non permette alle app web di lavorare in sottofondo: per
+  questo ntfy, Telegram e il calendario sono la strada giusta.
+- Nessun avviso può arrivare se togli l'accesso a internet al telefono.
+
+--------------------------------------------------------------------------------
+QUALITÀ DEI DATI
+--------------------------------------------------------------------------------
+- "Quanto scrivere nell'avviso" decide quanti dati escono dal telefono:
+    nome e telefono  → comodissimo, ma il nome viaggia
+    solo cognome     → consigliato per l'SMS
+    solo codice      → nessun dato personale (solo "cliente 1234 alle 10:30")
+- La coda per il pianificatore esterno ("📤 Esporta coda") NON contiene
+  mai i nomi: solo orario e codice.
+
+--------------------------------------------------------------------------------
+PROMEMORIA OLTRE I 3 GIORNI, AD APP MAI APERTA (facoltativo, avanzato)
+--------------------------------------------------------------------------------
+Se un giorno stai via più di tre giorni e vuoi comunque le sveglie, esiste
+un pianificatore che gira sui server di GitHub. NON è ancora acceso: è
+pronto e chiedilo al tuo sviluppatore quando ti serve.
+Per accenderlo servono due cose:
+  1. un permesso GitHub in più (una sola volta, 30 secondi)
+  2. il canale ntfy e l'indirizzo del file coda scritti nelle impostazioni
+     del repository (Settings → Secrets and variables → Actions → Variables):
+       NTFY_TOPIC = il tuo canale ntfy
+       CODA_URL   = indirizzo del file "coda-sveglie.json" esportato da ImmoCRM
+Il file coda non contiene nomi di clienti. Se non ti serve, ignora pure
+questa parte: senza di essa funziona tutto il resto.
+
+--------------------------------------------------------------------------------
+COME CAPISCI CHE FUNZIONA
+--------------------------------------------------------------------------------
+1. Menu "⏰ Promemoria" → la sveglia che hai messo è nell'elenco.
+2. Premi "🔔 Prova adesso": se hai acceso ntfy o Telegram, il telefono suona.
+3. La campanella in alto 🔔 conta anche le sveglie, con l'orario scritto.
